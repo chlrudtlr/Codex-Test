@@ -21,7 +21,7 @@ Daynote는 회사에서 하루의 일정과 할 일을 날짜별로 정리하는
 
 ## 설치하고 사용하기
 
-1. Windows x64 설치파일 `Daynote-Setup-1.2.0-x64.exe`를 준비합니다. 로컬 빌드 결과는 `dist/`에 있습니다.
+1. [최신 설치파일 배포 페이지](https://github.com/chlrudtlr/Codex-Test/releases/latest)의 **Assets**에서 `Daynote-Setup-1.2.0-x64.exe`를 다운로드합니다. 로컬 빌드 결과는 `dist/`에도 있습니다.
 2. 설치파일을 실행하고 설치 마법사의 안내에 따라 설치합니다.
 3. 시작 메뉴 또는 바탕화면의 **Daynote**를 실행합니다.
 4. 왼쪽에서 날짜를 선택하고 오른쪽 입력줄을 클릭해 일정이나 할 일을 적습니다.
@@ -32,7 +32,23 @@ Daynote는 회사에서 하루의 일정과 할 일을 날짜별로 정리하는
 
 업데이트할 때는 실행 중인 Daynote를 종료하고 같은 설치 위치에 새 버전을 설치하세요. 앱 이름과 데이터 저장 위치를 유지하므로 기존 기록을 이어서 사용할 수 있습니다. 데이터 백업 방법은 [사용법](docs/사용법.md#저장-위치와-백업)을 참고하세요.
 
-설치파일은 로컬 빌드 산출물이며 Git 저장소에는 포함되지 않습니다. 소스만 받은 경우 아래 개발·빌드 절차로 생성할 수 있습니다. 현재 설치파일은 코드 서명이 적용되지 않은 개발용 빌드입니다.
+설치파일은 [GitHub Releases](https://github.com/chlrudtlr/Codex-Test/releases)에서 버전별로 배포하며 소스의 Git 이력에는 포함하지 않습니다. 소스만 받은 경우 아래 개발·빌드 절차로 직접 생성할 수도 있습니다. 현재 설치파일은 코드 서명이 적용되지 않은 개발용 빌드입니다.
+
+## 버전별 설치파일
+
+각 배포 페이지의 **Assets**에서 `.exe` 설치파일과 `SHA256SUMS.txt`를 받을 수 있습니다. 최신 버전은 **1.2.0**입니다.
+
+| 버전 | 주요 변경 | 다운로드 |
+|---|---|---|
+| 1.2.0 | 기간별 TODO Excel 내보내기 | [설치파일](https://github.com/chlrudtlr/Codex-Test/releases/tag/installer-v1.2.0) |
+| 1.1.2 | 삭제 되돌리기 기능 제거 | [설치파일](https://github.com/chlrudtlr/Codex-Test/releases/tag/installer-v1.1.2) |
+| 1.1.1 | 입력 동작 개선, Pretendard Medium 동봉 | [설치파일](https://github.com/chlrudtlr/Codex-Test/releases/tag/installer-v1.1.1) |
+| 1.1.0 | 화면 정리, 9가지 테마 | [설치파일](https://github.com/chlrudtlr/Codex-Test/releases/tag/installer-v1.1.0) |
+| 1.0.0 | 캘린더·일정·TODO 기본 기능 | [설치파일](https://github.com/chlrudtlr/Codex-Test/releases/tag/installer-v1.0.0) |
+
+`installer-v*`는 설치파일 배포용 태그입니다. 1.1.0·1.1.1·1.1.2는 당시 소스를 별도 커밋으로 남기지 않아 설치파일 보관용으로 게시했습니다. 이 중간 버전의 자동 생성 **Source code** 압축파일이 해당 설치파일의 소스 스냅샷을 뜻하지는 않습니다. 자세한 변경·검증 이력은 [검증결과](docs/검증결과.md#버전별-변경-이력)에 있습니다.
+
+다음 버전부터는 소스를 버전별 커밋으로 남긴 뒤, 해당 커밋을 기준으로 `installer-v버전` 릴리스를 만들고 빌드한 `.exe`와 체크섬을 첨부하는 방식으로 이력을 이어갈 수 있습니다.
 
 ## Excel로 업무 정리하기
 
