@@ -198,6 +198,27 @@ test('빈 공간 클릭은 입력을 시작하거나 추가하지 않고 Enter�
   expect(errors).toEqual([]);
 });
 
+test('키보드로 삭제하면 이전 입력줄이나 추가 버튼으로 포커스를 옮긴다', async () => {
+  for (const section of ['schedule', 'todo']) {
+    const fields = page.locator(`#${section}-editor textarea`);
+    const remove = page.locator(`#${section}-editor .delete-item`);
+    await fields.first().fill('유지할 항목');
+    await fields.first().press('End');
+    await fields.first().press('Enter');
+    await fields.last().fill('삭제할 항목');
+    await remove.last().focus();
+    await page.keyboard.press('Enter');
+    await expect(fields).toHaveCount(1);
+    await expect(fields.first()).toHaveValue('유지할 항목');
+    await expect(fields.first()).toBeFocused();
+    await remove.first().focus();
+    await page.keyboard.press('Enter');
+    await expect(fields.first()).toHaveValue('');
+    await expect(page.locator(`#add-${section}`)).toBeFocused();
+  }
+  expect(errors).toEqual([]);
+});
+
 test('동봉한 Pretendard Variable Medium을 사용하고 월 제목 크기를 로고와 맞춘다', async () => {
   await page.evaluate(() => document.fonts.ready);
   expect(await page.evaluate(() => document.fonts.check('500 16px "Pretendard Variable"', '업무 일정 Daynote'))).toBe(true);

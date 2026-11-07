@@ -38,7 +38,7 @@
     <main class="workspace" aria-busy="true">
       <section class="calendar-panel panel" aria-label="월간 캘린더">
         <div class="month-toolbar">
-          <div class="month-title"><span id="month-eyebrow" class="eyebrow">MY CALENDAR</span><h2 id="month-heading"></h2></div>
+          <div class="month-title"><h2 id="month-heading"></h2></div>
           <div class="month-navigation">
             <button id="today-button" class="today-button">오늘</button>
             <div class="arrow-group">
@@ -53,7 +53,7 @@
       </section>
 
       <aside class="day-panel" aria-label="선택한 날짜의 기록">
-        <header class="selected-header"><div><p class="eyebrow">DAILY NOTE</p><h2 id="selected-heading"></h2></div><span id="selected-today" class="today-badge" hidden>오늘</span></header>
+        <header class="selected-header"><div><h2 id="selected-heading" aria-live="polite" aria-atomic="true"></h2></div><span id="selected-today" class="today-badge" hidden>오늘</span></header>
 
         <section class="editor-card schedule-card panel" aria-labelledby="schedule-heading">
           <header class="editor-header"><div class="editor-title"><span class="section-icon schedule-icon"><svg class="icon"><use href="#i-clock"/></svg></span><h3 id="schedule-heading">일정<span>Schedule</span></h3><span id="schedule-count" class="count-badge">0</span></div><button id="add-schedule" class="icon-button add-button" aria-label="일정 추가" title="일정 추가"><svg class="icon"><use href="#i-plus"/></svg></button></header>
@@ -82,7 +82,7 @@
   </dialog>
 
   <dialog id="settings-dialog" aria-labelledby="settings-heading">
-    <header class="dialog-header"><div><p class="eyebrow">PREFERENCES</p><h2 id="settings-heading">설정</h2></div><button id="close-settings" class="icon-button" aria-label="설정 닫기"><svg class="icon"><use href="#i-close"/></svg></button></header>
+    <header class="dialog-header"><div><h2 id="settings-heading">설정</h2></div><button id="close-settings" class="icon-button" aria-label="설정 닫기"><svg class="icon"><use href="#i-close"/></svg></button></header>
     <div class="settings-content">
     <div class="setting-row"><div><label for="auto-launch">로그인 후 자동 실행</label><p>마지막 창 크기와 위치로 Daynote를 엽니다.</p></div><input type="checkbox" role="switch" id="auto-launch"></div>
     <p id="auto-launch-help" class="setting-help"></p>

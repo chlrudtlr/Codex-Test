@@ -305,7 +305,7 @@ function renderEditor(section, focusId, caret) {
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'icon-button delete-item';
     remove.setAttribute('aria-label', `${name}${item.type === 'note' ? ' 설명' : ''} ${index + 1} 삭제`);
     remove.title = '삭제'; remove.append(icon('close'));
-    remove.addEventListener('click', () => deleteItem(section, item.id));
+    remove.addEventListener('click', event => deleteItem(section, item.id, event.detail === 0));
     row.append(remove); container.append(row);
   });
   container.scrollTop = scroll;
@@ -391,8 +391,11 @@ function deleteItem(section, id, keepEditing = false) {
   if (index < 0) return;
   const end = items[index].type === 'task' ? groupEnd(items, index) : index + 1;
   items.splice(index, end - index);
+  // Keep keyboard users in the editor after the focused row is removed.
   const focus = items[Math.max(0, index - 1)]?.id;
-  renderEditor(section, keepEditing ? focus : undefined); changed();
+  renderEditor(section, keepEditing ? focus : undefined);
+  if (keepEditing && !focus) $(`add-${section}`).focus();
+  changed();
 }
 
 $('dismiss-toast').addEventListener('click', () => { $('toast').hidden = true; });
