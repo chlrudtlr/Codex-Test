@@ -7,6 +7,7 @@
   <title>Daynote · 업무 캘린더</title>
   <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="preload" href="./fonts/PretendardVariable.woff2" as="font" type="font/woff2" crossorigin>
   <script type="module" src="./app.js"></script>
 </head>
 <body>
@@ -25,8 +26,9 @@
 
   <div class="app-shell">
     <header class="app-header">
-      <div class="brand"><span class="brand-icon"><svg class="icon"><use href="#i-calendar"/></svg></span><div><h1>Daynote<span class="brand-dot">.</span></h1><p>나의 업무 캘린더</p></div></div>
+      <div class="brand"><span class="brand-icon"><svg class="icon"><use href="#i-calendar"/></svg></span><h1>Daynote<span class="brand-dot">.</span></h1></div>
       <div class="header-actions">
+        <button id="export-button" class="export-button" type="button" disabled>Export</button>
         <button id="save-status" class="save-status" type="button" title="변경 내용이 PC에 자동 저장됩니다" aria-live="polite"><span class="status-dot"></span><span id="save-label">불러오는 중</span></button>
         <span class="header-divider"></span>
         <button id="settings-button" class="icon-button" aria-label="설정" title="설정"><svg class="icon"><use href="#i-settings"/></svg></button>
@@ -62,22 +64,35 @@
           <header class="editor-header"><div class="editor-title"><span class="section-icon"><svg class="icon"><use href="#i-list"/></svg></span><h3 id="todo-heading">할 일<span>TODO List</span></h3></div><button id="add-todo" class="icon-button add-button" aria-label="할 일 추가" title="할 일 추가"><svg class="icon"><use href="#i-plus"/></svg></button></header>
           <div class="todo-progress"><span id="todo-progress-text">완료 0 / 전체 0</span><span id="todo-progress-percent">0%</span><div class="progress-track" role="progressbar" aria-label="할 일 완료율" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="todo-progress-fill"></div></div></div>
           <div id="todo-editor" class="item-editor" aria-label="할 일 입력 영역"></div>
-          <footer class="editor-footer"><kbd>Enter</kbd> 새 항목 <span>·</span> <kbd>Tab</kbd> 설명 <span>·</span> <kbd>Shift + Tab</kbd> 되돌리기</footer>
+          <footer class="editor-footer"><kbd>Enter</kbd> 새 항목 <span>·</span> <kbd>Tab</kbd> 설명 <span>·</span> <kbd>Shift + Tab</kbd> 체크박스</footer>
         </section>
       </aside>
     </main>
-    <footer class="app-footer"><span>하루의 계획부터, 마무리까지.</span><span>내 PC에 저장되는 나만의 기록</span></footer>
   </div>
+
+  <dialog id="export-dialog" aria-labelledby="export-heading" aria-describedby="export-description">
+    <header class="dialog-header"><h2 id="export-heading">Excel로 업무 정리하기</h2><button id="close-export" class="icon-button" aria-label="내보내기 닫기"><svg class="icon"><use href="#i-close"/></svg></button></header>
+    <p id="export-description">내가 했던 업무 내용(TODO List)들을 엑셀로 정리하여 내보낼 수 있습니다.</p>
+    <form id="export-form" novalidate>
+      <div class="export-period"><label for="export-start">시작일<input id="export-start" type="date" required></label><label for="export-end">종료일<input id="export-end" type="date" required></label></div>
+      <p class="export-note">시작일과 종료일을 포함하며, 날짜·업무 내용·완료 여부를 내보냅니다.</p>
+      <p id="export-status" role="status" aria-live="polite"></p>
+      <footer class="dialog-footer export-footer"><button id="cancel-export" class="secondary-button" type="button">취소</button><button id="confirm-export" class="primary-button" type="submit">Export</button></footer>
+    </form>
+  </dialog>
 
   <dialog id="settings-dialog" aria-labelledby="settings-heading">
     <header class="dialog-header"><div><p class="eyebrow">PREFERENCES</p><h2 id="settings-heading">설정</h2></div><button id="close-settings" class="icon-button" aria-label="설정 닫기"><svg class="icon"><use href="#i-close"/></svg></button></header>
+    <div class="settings-content">
     <div class="setting-row"><div><label for="auto-launch">로그인 후 자동 실행</label><p>마지막 창 크기와 위치로 Daynote를 엽니다.</p></div><input type="checkbox" role="switch" id="auto-launch"></div>
     <p id="auto-launch-help" class="setting-help"></p>
+    <fieldset class="theme-picker"><legend>메인 테마</legend><p class="setting-help">원하는 색상이나 밝기 테마를 선택하세요.</p><div id="theme-options" class="theme-options"></div><p id="theme-status" class="setting-help" role="status" aria-live="polite"></p></fieldset>
     <div class="settings-info"><h3>자동 저장</h3><p>변경한 내용은 인터넷 연결 없이 이 PC에 저장됩니다.<br>앱을 다시 열면 오늘 날짜로 시작합니다.</p><span class="path-label">저장 파일 위치</span><code id="data-path"></code><p class="backup-info">calendar.json.bak 파일에 이전 저장본도 보관합니다.</p></div>
     <div class="keyboard-guide"><h3>키보드 사용법</h3><p><kbd>Enter</kbd><span>새 체크박스 항목</span></p><p><kbd>Tab</kbd><span>위 항목의 설명으로 전환</span></p><p><kbd>Shift + Tab</kbd><span>설명을 체크박스로 전환</span></p><p><kbd>Backspace</kbd><span>비어 있는 항목 삭제</span></p></div>
-    <footer class="dialog-footer"><span id="app-version">Daynote</span><button id="settings-done" class="primary-button">완료</button></footer>
+    </div>
+    <footer class="dialog-footer"><div class="app-credit"><span id="app-version">Daynote</span><span>Crafted by ks0108.choi</span></div><button id="settings-done" class="primary-button">완료</button></footer>
   </dialog>
 
-  <div id="toast" class="toast" role="status" hidden><span id="toast-message"></span><button id="undo-button" hidden>실행 취소</button><button id="dismiss-toast" aria-label="알림 닫기"><svg class="icon"><use href="#i-close"/></svg></button></div>
+  <div id="toast" class="toast" role="status" hidden><span id="toast-message"></span><button id="dismiss-toast" aria-label="알림 닫기"><svg class="icon"><use href="#i-close"/></svg></button></div>
 </body>
 </html>

@@ -1,4 +1,6 @@
 import { WEEKDAYS, dateKey, parseDate, monthDates, newItem, taskStats, scheduleItems, groupEnd, canIndent } from '../shared/model.js';
+import { THEMES, isTheme } from '../shared/themes.js';
+import { validateExportRange } from '../shared/export.js';
 
 const $ = id => document.getElementById(id);
 const api = window.daynote;
@@ -9,9 +11,96 @@ let month = parseDate(selected);
 let revision = 0;
 let savedRevision = 0;
 let saveTimer;
-let undo;
 let loading = true;
 let resizeFrame;
+let currentTheme = 'green';
+const editorFocusGeneration = { schedule: 0, todo: 0 };
+let exportInProgress = false;
+
+$('export-button').addEventListener('click', () => {
+  if (loading || exportInProgress) return;
+  $('export-start').value = dateKey(new Date(month.getFullYear(), month.getMonth(), 1, 12));
+  $('export-end').value = dateKey(new Date(month.getFullYear(), month.getMonth() + 1, 0, 12));
+  $('export-status').textContent = '';
+  $('export-status').className = '';
+  $('export-dialog').showModal();
+  $('export-start').focus();
+});
+for (const id of ['close-export', 'cancel-export']) {
+  $(id).addEventListener('click', () => { if (!exportInProgress) $('export-dialog').close(); });
+}
+$('export-dialog').addEventListener('cancel', event => { if (exportInProgress) event.preventDefault(); });
+$('export-form').addEventListener('submit', async event => {
+  event.preventDefault();
+  if (exportInProgress) return;
+  const start = $('export-start').value;
+  const end = $('export-end').value;
+  const message = $('export-status');
+  message.className = '';
+  try { validateExportRange(start, end); }
+  catch (error) { message.textContent = error.message; message.className = 'error'; return; }
+  exportInProgress = true;
+  const controls = ['export-button', 'export-start', 'export-end', 'confirm-export', 'close-export', 'cancel-export'];
+  for (const id of controls) $(id).disabled = true;
+  $('export-form').setAttribute('aria-busy', 'true');
+  $('confirm-export').textContent = '내보내는 중…';
+  message.textContent = '저장 위치를 선택해주세요.';
+  try {
+    const result = await api.exportTodo({ start, end, data: structuredClone(data) });
+    if (result.status === 'saved') {
+      $('export-dialog').close();
+      notify(`할 일 ${result.count}개를 Excel 파일로 저장했습니다.`);
+    } else if (result.status === 'empty') {
+      message.textContent = '해당 기간에 내보낼 할 일이 없습니다. 기간을 변경해주세요.';
+    } else if (result.status === 'canceled') {
+      message.textContent = '저장을 취소했습니다. 기간을 유지한 채 다시 시도할 수 있습니다.';
+    } else {
+      message.textContent = result.message || '내보내지 못했습니다. 잠시 후 다시 시도해주세요.';
+      message.className = 'error';
+    }
+  } catch {
+    message.textContent = '파일을 저장하지 못했습니다. 다른 저장 위치를 선택하거나 열려 있는 Excel 파일을 닫고 다시 시도해주세요.';
+    message.className = 'error';
+  } finally {
+    exportInProgress = false;
+    for (const id of controls) $(id).disabled = false;
+    $('export-form').setAttribute('aria-busy', 'false');
+    $('confirm-export').textContent = 'Export';
+  }
+});
+
+function applyTheme(value) {
+  currentTheme = isTheme(value) ? value : 'green';
+  document.documentElement.dataset.theme = currentTheme;
+  for (const radio of document.querySelectorAll('input[name="theme"]')) radio.checked = radio.value === currentTheme;
+}
+
+for (const theme of THEMES) {
+  const option = document.createElement('label');
+  option.className = 'theme-option'; option.dataset.themeChoice = theme.id;
+  const radio = document.createElement('input');
+  radio.type = 'radio'; radio.name = 'theme'; radio.value = theme.id;
+  const swatch = document.createElement('span'); swatch.className = 'theme-swatch'; swatch.setAttribute('aria-hidden', 'true');
+  const text = document.createElement('span'); text.textContent = theme.label;
+  option.append(radio, swatch, text); $('theme-options').append(option);
+  radio.addEventListener('change', async () => {
+    const previous = currentTheme;
+    applyTheme(theme.id);
+    const radios = document.querySelectorAll('input[name="theme"]');
+    for (const input of radios) input.disabled = true;
+    $('theme-status').textContent = '테마 저장 중';
+    try {
+      const updated = await api.setTheme(theme.id);
+      applyTheme(updated.theme);
+      $('theme-status').textContent = '테마가 저장되었습니다.';
+    } catch {
+      applyTheme(previous);
+      $('theme-status').textContent = '테마를 저장하지 못했습니다. 다시 선택해주세요.';
+    } finally {
+      for (const input of radios) input.disabled = false;
+    }
+  });
+}
 
 function icon(name, className = 'icon') {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -27,9 +116,8 @@ function day() {
   return data.days[selected] ??= { schedule: [], todo: [] };
 }
 
-function notify(message, reversible = false) {
+function notify(message) {
   $('toast-message').textContent = message;
-  $('undo-button').hidden = !reversible;
   $('toast').hidden = false;
 }
 
@@ -189,6 +277,7 @@ function autoHeight(textarea) {
 }
 
 function renderEditor(section, focusId, caret) {
+  const focusGeneration = ++editorFocusGeneration[section];
   const container = $(`${section}-editor`);
   const scroll = container.scrollTop;
   container.replaceChildren();
@@ -203,7 +292,7 @@ function renderEditor(section, focusId, caret) {
       checkbox.addEventListener('change', () => { item.checked = checkbox.checked; changed(); });
       row.append(checkbox);
     } else {
-      const mark = document.createElement('span'); mark.className = 'note-mark'; mark.append(icon('note')); row.append(mark);
+      const mark = document.createElement('span'); mark.className = 'note-mark'; mark.setAttribute('aria-hidden', 'true'); row.append(mark);
     }
     const textarea = document.createElement('textarea');
     textarea.rows = 1; textarea.value = item.text; textarea.spellcheck = false;
@@ -223,7 +312,7 @@ function renderEditor(section, focusId, caret) {
   // Keep the selected day's editor height correct after font/layout changes.
   requestAnimationFrame(() => {
     for (const textarea of container.querySelectorAll('textarea')) autoHeight(textarea);
-    if (focusId) {
+    if (focusId && focusGeneration === editorFocusGeneration[section]) {
       const field = container.querySelector(`[data-id="${focusId}"] textarea`);
       field?.focus();
       if (field) field.setSelectionRange(caret ?? field.value.length, caret ?? field.value.length);
@@ -259,7 +348,7 @@ function handleKey(event, section, item, textarea) {
       if (next) next.focus(); else document.getElementById(`add-${section}`).focus();
     }
   } else if (event.key === 'Backspace' && !textarea.value && !event.altKey && !event.ctrlKey && !event.metaKey) {
-    if (items.length > 1) { event.preventDefault(); deleteItem(section, item.id); }
+    if (items.length > 1) { event.preventDefault(); deleteItem(section, item.id, true); }
   } else if (event.key === 'ArrowUp' && textarea.selectionStart === 0 && textarea.selectionEnd === 0) {
     const previous = containerField(section, index - 1);
     if (previous) { event.preventDefault(); previous.focus(); previous.setSelectionRange(previous.value.length, previous.value.length); }
@@ -296,34 +385,28 @@ function addItem(section) {
   renderEditor(section, item.id); changed();
 }
 
-function deleteItem(section, id) {
+function deleteItem(section, id, keepEditing = false) {
   const items = day()[section];
   const index = items.findIndex(item => item.id === id);
   if (index < 0) return;
   const end = items[index].type === 'task' ? groupEnd(items, index) : index + 1;
-  undo = { key: selected, section, index, items: structuredClone(items.slice(index, end)) };
   items.splice(index, end - index);
   const focus = items[Math.max(0, index - 1)]?.id;
-  renderEditor(section, focus); changed();
-  notify(end - index > 1 ? '항목과 연결된 설명을 삭제했습니다.' : '항목을 삭제했습니다.', true);
+  renderEditor(section, keepEditing ? focus : undefined); changed();
 }
 
-$('undo-button').addEventListener('click', () => {
-  if (!undo) return;
-  const previous = undo; undo = null;
-  const items = data.days[previous.key][previous.section];
-  items.splice(Math.min(previous.index, items.length), 0, ...previous.items);
-  if (selected !== previous.key) selectDate(previous.key);
-  renderEditor(previous.section, previous.items[0].id); changed();
-  $('toast').hidden = true;
-});
 $('dismiss-toast').addEventListener('click', () => { $('toast').hidden = true; });
 $('save-status').addEventListener('click', () => { if (!loading) void save(); });
 $('add-schedule').addEventListener('click', () => addItem('schedule'));
 $('add-todo').addEventListener('click', () => addItem('todo'));
 for (const section of ['schedule', 'todo']) {
-  $(`${section}-editor`).addEventListener('click', event => {
-    if (event.target === event.currentTarget) addItem(section);
+  $(`${section}-editor`).addEventListener('pointerdown', event => {
+    // A later mouse action takes priority over an earlier queued keyboard focus.
+    editorFocusGeneration[section]++;
+    // Blank space only ends editing; creating an item requires Enter or +.
+    if (!event.target.closest('textarea, button, input') && document.activeElement instanceof HTMLTextAreaElement) {
+      document.activeElement.blur();
+    }
   });
 }
 
@@ -338,6 +421,7 @@ $('next-month').addEventListener('click', () => moveMonth(1));
 $('today-button').addEventListener('click', () => { today = dateKey(new Date()); selectDate(today); });
 
 function applySettings(settings) {
+  applyTheme(settings.theme);
   $('auto-launch').checked = settings.autoLaunch;
   $('auto-launch').disabled = !settings.autoLaunchSupported;
   $('data-path').textContent = settings.dataPath;
@@ -393,8 +477,11 @@ async function initialize() {
   try {
     if (!api) throw new Error('desktop-only');
     const loaded = await api.load(); data = loaded.data;
+    applyTheme(loaded.theme);
+    await document.fonts.ready;
     renderCalendar(); renderDay();
     loading = false;
+    $('export-button').disabled = false;
     document.querySelector('.workspace').setAttribute('aria-busy', 'false');
     status('', '자동 저장됨');
     if (loaded.recoveryMessage) notify(loaded.recoveryMessage);

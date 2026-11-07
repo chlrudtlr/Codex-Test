@@ -1,6 +1,6 @@
 {
   "name": "daynote",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "인터넷 없이 사용하는 업무 및 일정 캘린더",
   "private": true,
   "type": "module",
@@ -47,5 +47,8 @@
     },
     "linux": { "target": ["AppImage"], "icon": "assets/icon.png", "category": "Office" },
     "mac": { "target": ["dmg"], "category": "public.app-category.productivity" }
+  },
+  "dependencies": {
+    "exceljs": "4.4.0"
   }
 }

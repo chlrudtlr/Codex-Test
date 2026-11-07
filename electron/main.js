@@ -1,9 +1,12 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, nativeTheme } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DataStore, atomicWrite } from './storage.js';
 import { visibleBounds } from './window-state.js';
+import { isTheme } from '../shared/themes.js';
+import { validateData } from '../shared/model.js';
+import { collectTodoRows } from '../shared/export.js';
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const indexFile = path.join(directory, '../src/index.html');
@@ -15,6 +18,9 @@ let boundsTimer;
 let lastWindowState;
 let restoringBounds = false;
 let restoredBounds;
+let preferencesFile;
+let theme = 'green';
+let exporting = false;
 
 // Tests use an isolated directory and never alter the user's actual records.
 if (process.env.DAYNOTE_TEST_DATA && !app.isPackaged) app.setPath('userData', process.env.DAYNOTE_TEST_DATA);
@@ -31,7 +37,7 @@ function settings() {
     enabled = login.openAtLogin && (process.platform !== 'win32' || login.executableWillLaunchAtLogin);
   }
   return { autoLaunch: enabled, autoLaunchSupported: supported, platform: process.platform,
-    packaged: app.isPackaged, dataPath: store.file, version: app.getVersion() };
+    packaged: app.isPackaged, dataPath: store.file, version: app.getVersion(), theme };
 }
 
 function trusted(event) {
@@ -74,7 +80,7 @@ function createWindow() {
     width: Math.min(1240, primary.width), height: Math.min(820, primary.height),
     minWidth: Math.min(920, primary.width), minHeight: Math.min(640, primary.height),
     ...(bounds ?? {}),
-    title: 'Daynote', backgroundColor: '#f5f6f2', show: false,
+    title: 'Daynote', backgroundColor: theme === 'dark' ? '#191d23' : '#f5f6f2', show: false,
     icon: path.join(directory, '../assets/icon.png'),
     webPreferences: {
       preload: path.join(directory, 'preload.cjs'),
@@ -105,7 +111,10 @@ function createWindow() {
       clearTimeout(boundsTimer); boundsTimer = setTimeout(saveBounds, 250);
     });
   }
-  mainWindow.on('close', () => { clearTimeout(boundsTimer); saveBounds(); });
+  mainWindow.on('close', event => {
+    if (exporting) { event.preventDefault(); return; }
+    clearTimeout(boundsTimer); saveBounds();
+  });
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
@@ -119,6 +128,12 @@ if (singleInstance) {
   app.whenReady().then(() => {
     store = new DataStore(app.getPath('userData'));
     windowFile = path.join(app.getPath('userData'), 'window-state.json');
+    preferencesFile = path.join(app.getPath('userData'), 'preferences.json');
+    try {
+      const preferences = JSON.parse(fs.readFileSync(preferencesFile, 'utf8'));
+      if (isTheme(preferences.theme)) theme = preferences.theme;
+    } catch { /* Missing/invalid appearance preferences use the default theme. */ }
+    nativeTheme.themeSource = theme === 'dark' ? 'dark' : 'light';
     try { store.load(); } catch (error) {
       dialog.showErrorBox('Daynote 저장 파일 오류', `${error.message}\n\n저장 위치: ${store.file}\n기존 기록을 보호하기 위해 앱을 종료합니다.`);
       app.quit(); return;
@@ -127,14 +142,56 @@ if (singleInstance) {
       { role: 'appMenu' }, { role: 'editMenu' }, { role: 'windowMenu' }
     ]) : null);
     ipcMain.handle('calendar:load', event => {
-      trusted(event); return { data: store.load(), recoveryMessage: store.recoveryMessage };
+      trusted(event); return { data: store.load(), recoveryMessage: store.recoveryMessage, theme };
     });
     ipcMain.handle('calendar:save', (event, data) => { trusted(event); store.save(data); return true; });
+    ipcMain.handle('calendar:export', async (event, payload) => {
+      trusted(event);
+      if (exporting) throw new Error('이미 내보내기를 진행하고 있습니다.');
+      if (!payload || typeof payload !== 'object') throw new Error('내보내기 요청이 올바르지 않습니다.');
+      const { start, end } = payload;
+      // Export the current editor snapshot, including the latest unsaved input.
+      const rows = collectTodoRows(validateData(payload.data), start, end);
+      if (!rows.length) return { status: 'empty', count: 0 };
+      if (rows.length > 1048575 || rows.some(row => row.content.length > 32767)) {
+        return { status: 'error', message: 'Excel의 행 수 또는 셀 글자 수 제한을 초과했습니다. 기간을 줄이거나 긴 업무 내용을 나누어주세요.' };
+      }
+      exporting = true;
+      try {
+        const result = await dialog.showSaveDialog(mainWindow, {
+          title: 'Excel로 내보내기', buttonLabel: '저장',
+          defaultPath: path.join(app.getPath('downloads'), `Daynote_TODO_${start}_${end}.xlsx`),
+          filters: [{ name: 'Excel 통합 문서', extensions: ['xlsx'] }],
+          properties: ['showOverwriteConfirmation']
+        });
+        if (result.canceled || !result.filePath) return { status: 'canceled' };
+        const file = /\.xlsx$/i.test(result.filePath) ? result.filePath : `${result.filePath}.xlsx`;
+        if (file !== result.filePath && fs.existsSync(file)) {
+          const confirmation = await dialog.showMessageBox(mainWindow, {
+            type: 'question', buttons: ['덮어쓰기', '취소'], defaultId: 1, cancelId: 1,
+            message: '같은 이름의 Excel 파일이 있습니다. 덮어쓸까요?', detail: file
+          });
+          if (confirmation.response !== 0) return { status: 'canceled' };
+        }
+        const { writeTodoWorkbook } = await import('./export-excel.js');
+        await writeTodoWorkbook(file, rows);
+        return { status: 'saved', count: rows.length, filePath: file };
+      } finally { exporting = false; }
+    });
     ipcMain.on('calendar:flush', (event, data) => {
       try { trusted(event); store.save(data); event.returnValue = { ok: true }; }
       catch (error) { event.returnValue = { ok: false, message: error.message }; }
     });
     ipcMain.handle('settings:get', event => { trusted(event); return settings(); });
+    ipcMain.handle('settings:theme', (event, value) => {
+      trusted(event);
+      if (!isTheme(value)) throw new Error('지원하지 않는 테마입니다.');
+      atomicWrite(preferencesFile, { theme: value });
+      theme = value;
+      nativeTheme.themeSource = theme === 'dark' ? 'dark' : 'light';
+      mainWindow.setBackgroundColor(theme === 'dark' ? '#191d23' : '#f5f6f2');
+      return settings();
+    });
     ipcMain.handle('settings:auto-launch', (event, enabled) => {
       trusted(event);
       if (!settings().autoLaunchSupported || typeof enabled !== 'boolean') throw new Error('설치된 Windows 또는 macOS 앱에서 설정할 수 있습니다.');
