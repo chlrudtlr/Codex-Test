@@ -14,6 +14,12 @@ let saveTimer;
 let loading = true;
 let resizeFrame;
 let currentTheme = 'green';
+let calendarDisplay = 'schedule';
+let notebookOpen = false;
+let openedMemoId = null;
+let memoSelectionMode = false;
+const selectedMemoIds = new Set();
+let pendingMemoDeletion = [];
 const editorFocusGeneration = { schedule: 0, todo: 0 };
 let exportInProgress = false;
 
@@ -218,13 +224,13 @@ function updateCalendarDay(key) {
   progress.textContent = stats.total ? `완료 ${stats.completed}/전체 ${stats.total}` : '';
   progress.classList.toggle('all-done', stats.total > 0 && stats.total === stats.completed);
   const date = parseDate(key);
-  cell.setAttribute('aria-label', `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${WEEKDAYS[date.getDay()]}요일, 일정 ${scheduleItems(entry).length}개, 완료 ${stats.completed}/전체 ${stats.total}`);
-  drawSchedulePreview(cell, entry);
+  cell.setAttribute('aria-label', `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일 ${WEEKDAYS[date.getDay()]}요일, 일정 ${scheduleItems(entry).length}개, 할 일 ${stats.total}개, ${calendarDisplay === 'schedule' ? '일정만 표시' : '할일만 표시'}, 완료 ${stats.completed}/전체 ${stats.total}`);
+  drawCalendarPreview(cell, entry);
 }
 
-function drawSchedulePreview(cell, entry) {
+function drawCalendarPreview(cell, entry) {
   const container = cell.querySelector('.cell-events');
-  const items = scheduleItems(entry);
+  const items = (entry?.[calendarDisplay] ?? []).filter(item => item.type === 'task' && item.text.trim());
   container.replaceChildren();
   const available = container.clientHeight;
   const capacity = Math.max(0, Math.floor(available / 21));
@@ -245,7 +251,7 @@ function drawSchedulePreview(cell, entry) {
 function scheduleCalendarLayout() {
   cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
-    for (const cell of document.querySelectorAll('.day-cell')) drawSchedulePreview(cell, data.days[cell.dataset.date]);
+    for (const cell of document.querySelectorAll('.day-cell')) drawCalendarPreview(cell, data.days[cell.dataset.date]);
   });
 }
 
@@ -299,7 +305,7 @@ function renderEditor(section, focusId, caret) {
     textarea.setAttribute('aria-label', `${name}${item.type === 'note' ? ' 설명' : ''} ${index + 1}`);
     textarea.placeholder = item.type === 'note' ? '위 항목의 설명을 입력하세요' : `${name === '일정' ? '일정' : '할 일'}을 입력하세요`;
     textarea.addEventListener('input', () => { item.text = textarea.value; autoHeight(textarea); changed(); });
-    textarea.addEventListener('keydown', event => handleKey(event, section, item, textarea));
+    bindEditorKeys(textarea, section, item);
     textarea.addEventListener('paste', event => pasteLines(event, section, item, textarea));
     row.append(textarea);
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'icon-button delete-item';
@@ -318,6 +324,44 @@ function renderEditor(section, focusId, caret) {
       if (field) field.setSelectionRange(caret ?? field.value.length, caret ?? field.value.length);
       field?.scrollIntoView({ block: 'nearest' });
     }
+  });
+}
+
+function bindEditorKeys(textarea, section, item) {
+  let composing = false;
+  let compositionJustEnded = false;
+  let pointerCommitting = false;
+  textarea.addEventListener('compositionstart', () => {
+    composing = true;
+    compositionJustEnded = false;
+  });
+  textarea.addEventListener('compositionend', () => {
+    composing = false;
+    // Windows IMEs can send compositionend before the confirming keydown,
+    // whose isComposing flag is already false. Keep this guard until keyup.
+    compositionJustEnded = document.activeElement === textarea && !pointerCommitting;
+  });
+  textarea.addEventListener('keyup', () => { compositionJustEnded = false; });
+  textarea.addEventListener('pointerdown', () => {
+    pointerCommitting = true;
+    compositionJustEnded = false;
+  });
+  for (const type of ['pointerup', 'pointercancel']) {
+    textarea.addEventListener(type, () => { pointerCommitting = false; });
+  }
+  textarea.addEventListener('blur', () => {
+    composing = false;
+    compositionJustEnded = false;
+    pointerCommitting = false;
+  });
+  textarea.addEventListener('keydown', event => {
+    if (event.isComposing || event.keyCode === 229 || composing) return;
+    if (event.key === 'Enter' && compositionJustEnded) {
+      event.preventDefault();
+      return;
+    }
+    compositionJustEnded = false;
+    handleKey(event, section, item, textarea);
   });
 }
 
@@ -396,6 +440,143 @@ function deleteItem(section, id, keepEditing = false) {
   renderEditor(section, keepEditing ? focus : undefined);
   if (keepEditing && !focus) $(`add-${section}`).focus();
   changed();
+}
+
+function updateMemoSelection() {
+  $('memo-selection-count').textContent = `${selectedMemoIds.size}개 선택`;
+  $('delete-selected-memos').disabled = selectedMemoIds.size === 0;
+}
+
+function renderMemoList() {
+  $('memo-list').replaceChildren();
+  const memos = data.memos ?? [];
+  $('memo-empty').hidden = memos.length > 0;
+  $('select-memos').disabled = memos.length === 0;
+  $('select-memos').setAttribute('aria-pressed', String(memoSelectionMode));
+  $('add-memo').disabled = memoSelectionMode;
+  $('memo-selection-actions').hidden = !memoSelectionMode;
+  updateMemoSelection();
+  for (const memo of memos) {
+    const row = document.createElement('li');
+    if (memoSelectionMode) {
+      const label = document.createElement('label'); label.className = 'memo-select-row';
+      const checkbox = document.createElement('input'); checkbox.type = 'checkbox';
+      checkbox.checked = selectedMemoIds.has(memo.id);
+      checkbox.dataset.memoId = memo.id;
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) selectedMemoIds.add(memo.id);
+        else selectedMemoIds.delete(memo.id);
+        updateMemoSelection();
+      });
+      const title = document.createElement('span'); title.textContent = memo.title.trim() || '제목 없음';
+      label.append(checkbox, title); row.append(label);
+    } else {
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'memo-list-button';
+      button.dataset.memoId = memo.id;
+      button.textContent = memo.title.trim() || '제목 없음';
+      button.addEventListener('click', () => openMemo(memo.id));
+      row.append(button);
+    }
+    $('memo-list').append(row);
+  }
+}
+
+function showMemoList(focus = false) {
+  openedMemoId = null;
+  memoSelectionMode = false;
+  selectedMemoIds.clear();
+  $('notebook-heading').textContent = '메모 목록';
+  $('memo-edit-view').hidden = true;
+  $('memo-list-view').hidden = false;
+  renderMemoList();
+  if (focus) $('add-memo').focus();
+}
+
+function openMemo(id) {
+  const memo = data.memos?.find(item => item.id === id);
+  if (!memo) return;
+  openedMemoId = id;
+  $('notebook-heading').textContent = '메모 편집';
+  $('memo-list-view').hidden = true;
+  $('memo-edit-view').hidden = false;
+  $('memo-title').value = memo.title;
+  $('memo-content').value = memo.content;
+  // Opening a memo is reading; only an explicit field interaction starts typing.
+  $('back-to-memos').focus({ preventScroll: true });
+}
+
+function setNotebookOpen(open) {
+  if (loading) return;
+  notebookOpen = open;
+  $('notebook-button').setAttribute('aria-pressed', String(notebookOpen));
+  document.querySelector('.day-panel').setAttribute('aria-label', notebookOpen ? '전체 메모장' : '선택한 날짜의 기록');
+  $('schedule-card').hidden = notebookOpen;
+  $('todo-card').hidden = notebookOpen;
+  $('notebook-panel').hidden = !notebookOpen;
+  showMemoList();
+  // Editors may have been rendered while hidden after a date change.
+  if (!notebookOpen) requestAnimationFrame(() => {
+    for (const field of document.querySelectorAll('.item-editor textarea')) autoHeight(field);
+  });
+}
+$('notebook-button').addEventListener('click', () => setNotebookOpen(!notebookOpen));
+$('back-to-day').addEventListener('click', () => {
+  setNotebookOpen(false);
+  $('notebook-button').focus();
+});
+$('add-memo').addEventListener('click', () => {
+  if (loading || memoSelectionMode) return;
+  const memo = { id: crypto.randomUUID(), title: '', content: '' };
+  (data.memos ??= []).unshift(memo);
+  changed();
+  renderMemoList();
+  openMemo(memo.id);
+});
+$('back-to-memos').addEventListener('click', () => showMemoList(true));
+for (const [id, property] of [['memo-title', 'title'], ['memo-content', 'content']]) {
+  $(id).addEventListener('input', event => {
+    const memo = data.memos?.find(item => item.id === openedMemoId);
+    if (!memo) return;
+    memo[property] = event.target.value;
+    changed();
+  });
+}
+$('select-memos').addEventListener('click', () => {
+  const enterSelection = !memoSelectionMode;
+  showMemoList();
+  memoSelectionMode = enterSelection;
+  renderMemoList();
+});
+$('cancel-memo-selection').addEventListener('click', () => showMemoList(true));
+$('delete-selected-memos').addEventListener('click', () => {
+  pendingMemoDeletion = [...selectedMemoIds];
+  if (!pendingMemoDeletion.length) return;
+  $('delete-memo-heading').textContent = `메모 ${pendingMemoDeletion.length}개를 삭제할까요?`;
+  $('delete-memo-dialog').showModal();
+  $('cancel-delete-memo').focus();
+});
+$('cancel-delete-memo').addEventListener('click', () => $('delete-memo-dialog').close());
+$('delete-memo-dialog').addEventListener('close', () => { pendingMemoDeletion = []; });
+$('confirm-delete-memo').addEventListener('click', () => {
+  if (!pendingMemoDeletion.length) return;
+  data.memos = (data.memos ?? []).filter(memo => !pendingMemoDeletion.includes(memo.id));
+  changed();
+  $('delete-memo-dialog').close();
+  showMemoList(true);
+});
+
+for (const section of ['schedule', 'todo']) {
+  $(`show-${section}`).addEventListener('click', () => {
+    if (calendarDisplay === section) return;
+    calendarDisplay = section;
+    for (const value of ['schedule', 'todo']) {
+      $(`show-${value}`).setAttribute('aria-pressed', String(value === section));
+    }
+    $('calendar-legend').textContent = section === 'schedule' ? '일정' : '할 일';
+    // Refresh previews in place so the selected date and editor stay intact.
+    for (const cell of document.querySelectorAll('.day-cell')) updateCalendarDay(cell.dataset.date);
+  });
 }
 
 $('dismiss-toast').addEventListener('click', () => { $('toast').hidden = true; });

@@ -142,6 +142,101 @@ test('긴 일정 생략, 숨겨진 개수, 작은 창에서도 진행률 표시'
   expect(errors).toEqual([]);
 });
 
+test('캘린더는 일정 표시로 시작하고 일정·할 일을 하나씩 전환한다', async () => {
+  let scheduleButton = page.getByRole('button', { name: '일정만 표시', exact: true });
+  let todoButton = page.getByRole('button', { name: '할일만 표시', exact: true });
+  const controls = page.locator('.calendar-display-controls');
+  let cell = page.locator('.day-cell.selected');
+  const key = await cell.getAttribute('data-date');
+  await expect(scheduleButton).toHaveAttribute('aria-pressed', 'true');
+  await expect(todoButton).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('#schedule-editor textarea').fill('10:00 일정 회의');
+  await page.locator('#todo-editor textarea').fill('할 일 보고서');
+  await expect(cell.locator('.event-text')).toHaveText(['10:00 일정 회의']);
+  await todoButton.click();
+  await expect(controls.locator('[aria-pressed="true"]')).toHaveCount(1);
+  await expect(scheduleButton).toHaveAttribute('aria-pressed', 'false');
+  await expect(cell.locator('.event-text')).toHaveText(['할 일 보고서']);
+  await expect(page.locator('#calendar-legend')).toHaveText('할 일');
+  await todoButton.click();
+  await expect(todoButton).toHaveAttribute('aria-pressed', 'true');
+  await page.locator('#todo-editor input[type=checkbox]').check();
+  await expect(cell.locator('.event-check')).toHaveCount(1);
+  await expect(cell.locator('.day-progress')).toHaveText('완료 1/전체 1');
+  await page.locator('#todo-editor textarea').fill('수정한 할 일');
+  await expect(cell.locator('.event-text')).toHaveText(['수정한 할 일']);
+  // Notes and blank tasks do not appear in the calendar preview.
+  await page.locator('#todo-editor textarea').press('End');
+  await page.locator('#todo-editor textarea').press('Enter');
+  await page.locator('#todo-editor textarea').last().press('Tab');
+  await page.locator('#todo-editor .note textarea').fill('캘린더에서 제외할 설명');
+  await page.getByRole('button', { name: '할 일 추가', exact: true }).click();
+  await expect(cell.locator('.event-text')).toHaveText(['수정한 할 일']);
+  await page.getByRole('button', { name: '다음 달', exact: true }).click();
+  await expect(todoButton).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.day-cell.selected .event-line')).toHaveCount(0);
+  await page.locator('#todo-editor textarea').fill('다음 달 할 일');
+  await expect(page.locator('.day-cell.selected .event-text')).toHaveText(['다음 달 할 일']);
+  await page.getByRole('button', { name: '오늘', exact: true }).click();
+  await expect(cell).toHaveAttribute('data-date', key);
+  await expect(cell.locator('.event-text')).toHaveText(['수정한 할 일']);
+  // Keyboard activation is equivalent to clicking, including repeated activation.
+  await scheduleButton.focus();
+  await scheduleButton.press('Space');
+  await scheduleButton.press('Enter');
+  await expect(controls.locator('[aria-pressed="true"]')).toHaveCount(1);
+  await expect(scheduleButton).toHaveAttribute('aria-pressed', 'true');
+  await expect(cell.locator('.event-text')).toHaveText(['10:00 일정 회의']);
+  await expect(cell.locator('.day-progress')).toHaveText('완료 1/전체 1');
+  await todoButton.click();
+  await expect(page.locator('#save-label')).toHaveText('자동 저장됨');
+  await desktop.close(); desktop = null;
+  await launch();
+  scheduleButton = page.getByRole('button', { name: '일정만 표시', exact: true });
+  todoButton = page.getByRole('button', { name: '할일만 표시', exact: true });
+  cell = page.locator('.day-cell.selected');
+  await expect(scheduleButton).toHaveAttribute('aria-pressed', 'true');
+  await expect(cell.locator('.event-text')).toHaveText(['10:00 일정 회의']);
+  await todoButton.click();
+  await expect(cell.locator('.event-text')).toHaveText(['수정한 할 일']);
+  await page.locator('#todo-editor .delete-item').first().click();
+  await expect(cell.locator('.event-line')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('할 일 표시의 긴 제목·숨겨진 개수와 작은 창의 전환 버튼 배치', async () => {
+  await page.getByRole('button', { name: '할일만 표시', exact: true }).click();
+  await page.locator('#todo-editor textarea').fill('아주 긴 할 일 제목으로 캘린더 날짜 칸의 말줄임 표시를 확인하는 업무');
+  for (let index = 0; index < 7; index++) {
+    await page.getByRole('button', { name: '할 일 추가', exact: true }).click();
+    await page.locator('#todo-editor textarea').last().fill(`추가 할 일 ${index + 1}`);
+  }
+  const cell = page.locator('.day-cell.selected');
+  await expect(cell.locator('.more-events')).toHaveText(/\+\d+개/);
+  const count = await cell.locator('.event-line').count();
+  await expect(cell.locator('.more-events')).toHaveText(`+${8 - count}개`);
+  expect(count).toBeGreaterThan(0);
+  expect(await cell.locator('.event-text').first().evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true);
+  await expect(cell.locator('.event-text').first()).toHaveCSS('text-overflow', 'ellipsis');
+  for (const [width, height] of [[920, 640], [1240, 820], [1600, 1000]]) {
+    await desktop.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setSize(...size), [width, height]);
+    await expect(page.locator('#show-todo')).toBeInViewport();
+    const controls = await page.locator('.calendar-display-controls').boundingBox();
+    const panel = await page.locator('.calendar-panel').boundingBox();
+    expect(controls.x + controls.width).toBeLessThanOrEqual(panel.x + panel.width);
+    await expect(cell.locator('.day-progress')).toBeInViewport();
+    expect(await page.evaluate(() => document.body.scrollHeight <= innerHeight)).toBe(true);
+    await page.screenshot({ path: `test-results/calendar-todo-${width}-${process.platform}.png` });
+  }
+  await page.getByRole('button', { name: '설정', exact: true }).click();
+  await page.getByRole('radio', { name: '어두운 테마', exact: true }).check();
+  await expect(page.locator('#theme-status')).toHaveText('테마가 저장되었습니다.');
+  await page.getByRole('button', { name: '완료', exact: true }).click();
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(920, 640));
+  await page.screenshot({ path: `test-results/calendar-todo-dark-${process.platform}.png` });
+  expect(errors).toEqual([]);
+});
+
 test('설명 변환·삭제와 IME 조합 중 Enter 처리', async () => {
   let fields = page.locator('#todo-editor textarea');
   await fields.first().fill('기획서');
@@ -355,5 +450,221 @@ test('취소·저장 실패 후 다시 내보내고 실제 Excel의 내용과 �
   expect(sheet.getRow(2).values.slice(1)).toEqual([key, '완료한 업무\n• 함께 내보낼 설명', '완료']);
   expect(sheet.getRow(3).values.slice(1)).toEqual([key, '내보내기 직전 수정한 업무', '미완료']);
   await copyFile(destination, 'test-results/todo-export-sample.xlsx');
+  expect(errors).toEqual([]);
+});
+
+test('전체 메모 추가·수정·삭제와 날짜 독립성, 즉시 종료 후 복원', async () => {
+  await page.locator('#schedule-editor textarea').fill('메모와 함께 보존할 일정');
+  await page.locator('#todo-editor textarea').fill('메모와 함께 보존할 업무');
+  await page.locator('#notebook-button').click();
+  await expect(page.locator('#notebook-button')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#schedule-card')).toBeHidden();
+  await expect(page.locator('#todo-card')).toBeHidden();
+  await expect(page.locator('#memo-empty')).toBeVisible();
+  await page.getByRole('button', { name: '메모 추가', exact: true }).click();
+  await expect(page.locator('#memo-title')).not.toBeFocused();
+  await expect(page.locator('#memo-content')).not.toBeFocused();
+  await page.locator('#memo-title').click();
+  await expect(page.locator('#memo-title')).toBeFocused();
+  await page.locator('#memo-title').fill('프로젝트 참고');
+  await page.locator('#memo-content').fill('회의에서 확인할 내용\n두 번째 줄');
+  await page.getByRole('button', { name: '목록으로', exact: true }).click();
+  await expect(page.locator('#memo-list button')).toHaveText(['프로젝트 참고']);
+  await page.getByRole('button', { name: '다음 달', exact: true }).click();
+  await expect(page.locator('#notebook-panel')).toBeVisible();
+  await expect(page.locator('#memo-list button')).toHaveText(['프로젝트 참고']);
+  await page.locator('#memo-list button').click();
+  await expect(page.locator('#memo-content')).toHaveValue('회의에서 확인할 내용\n두 번째 줄');
+  await page.locator('#memo-title').fill('수정한 프로젝트 참고');
+  await page.locator('#memo-content').fill('종료 직전의 최신 메모\n자동 저장 확인');
+  await desktop.close(); desktop = null;
+  await launch();
+  await expect(page.locator('#notebook-button')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#schedule-editor textarea')).toHaveValue('메모와 함께 보존할 일정');
+  await expect(page.locator('#todo-editor textarea')).toHaveValue('메모와 함께 보존할 업무');
+  await page.locator('#notebook-button').click();
+  await expect(page.locator('#memo-list button')).toHaveText(['수정한 프로젝트 참고']);
+  await page.locator('#memo-list button').click();
+  await expect(page.locator('#memo-content')).toHaveValue('종료 직전의 최신 메모\n자동 저장 확인');
+  await expect(page.locator('#memo-title')).not.toBeFocused();
+  await expect(page.locator('#memo-content')).not.toBeFocused();
+  await page.locator('#select-memos').click();
+  await expect(page.locator('#memo-edit-view')).toBeHidden();
+  await page.getByRole('checkbox', { name: '수정한 프로젝트 참고', exact: true }).check();
+  await page.locator('#delete-selected-memos').click();
+  await page.locator('#cancel-delete-memo').click();
+  await expect(page.getByRole('checkbox', { name: '수정한 프로젝트 참고', exact: true })).toBeChecked();
+  await page.locator('#delete-selected-memos').click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('checkbox', { name: '수정한 프로젝트 참고', exact: true })).toBeChecked();
+  await page.locator('#delete-selected-memos').click();
+  await page.locator('#confirm-delete-memo').click();
+  await expect(page.locator('#memo-empty')).toBeVisible();
+  await expect(page.locator('#add-memo')).toBeFocused();
+  await page.locator('#add-memo').press('Enter');
+  await page.locator('#memo-content').fill('제목이 없는 메모도 보존');
+  await page.locator('#back-to-memos').click();
+  await expect(page.locator('#memo-list button')).toHaveText(['제목 없음']);
+  await page.locator('#notebook-button').click();
+  await page.locator('#notebook-button').click();
+  await page.locator('#memo-list button').click();
+  await expect(page.locator('#memo-content')).toHaveValue('제목이 없는 메모도 보존');
+  await expect(page.locator('#save-label')).toHaveText('자동 저장됨');
+  const saved = JSON.parse(await readFile(path.join(directory, 'calendar.json'), 'utf8'));
+  expect(saved.memos).toHaveLength(1);
+  expect(saved.memos[0].content).toBe('제목이 없는 메모도 보존');
+  expect(errors).toEqual([]);
+});
+
+test('메모장의 긴 제목·본문, 작은 창·큰 창 및 어두운 테마', async () => {
+  await page.locator('#notebook-button').click();
+  await page.locator('#add-memo').click();
+  const title = '줄바꿈없이길게작성한메모제목'.repeat(12);
+  const content = '긴 메모 본문과 한국어 입력을 확인합니다.\n'.repeat(80);
+  await page.locator('#memo-title').fill(title);
+  await page.locator('#memo-content').fill(content);
+  await page.locator('#back-to-memos').click();
+  for (const [width, height] of [[920, 640], [1240, 820], [1600, 1000]]) {
+    await desktop.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setSize(...size), [width, height]);
+    await expect(page.locator('#notebook-button')).toBeInViewport();
+    await expect(page.locator('#memo-list button')).toHaveText(title);
+    expect(await page.evaluate(() => document.body.scrollWidth <= innerWidth && document.body.scrollHeight <= innerHeight)).toBe(true);
+    const bounds = await page.locator('.selected-header').boundingBox();
+    const button = await page.locator('#notebook-button').boundingBox();
+    expect(button.x + button.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+    await page.screenshot({ path: `test-results/notebook-list-${width}-${process.platform}.png` });
+    await page.locator('#memo-list button').click();
+    await expect(page.locator('#memo-content')).toHaveValue(content);
+    await expect(page.locator('#memo-content')).toBeInViewport();
+    await page.screenshot({ path: `test-results/notebook-edit-${width}-${process.platform}.png` });
+    await page.locator('#back-to-memos').click();
+  }
+  await page.getByRole('button', { name: '설정', exact: true }).click();
+  await page.getByRole('radio', { name: '어두운 테마', exact: true }).check();
+  await expect(page.locator('#theme-status')).toHaveText('테마가 저장되었습니다.');
+  await page.getByRole('button', { name: '완료', exact: true }).click();
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(920, 640));
+  await page.locator('#memo-list button').click();
+  await page.screenshot({ path: `test-results/notebook-dark-${process.platform}.png` });
+  await page.locator('#back-to-day').click();
+  await expect(page.locator('#notebook-button')).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('#todo-editor textarea').fill('카드 복귀 후에도 정상 편집');
+  await expect(page.locator('#todo-editor textarea')).toHaveValue('카드 복귀 후에도 정상 편집');
+  expect(errors).toEqual([]);
+});
+
+test('메모 복수 선택 삭제·취소·뒤로가기와 입력 전 커서 비활성', async () => {
+  await page.locator('#notebook-button').click();
+  await expect(page.locator('#select-memos')).toBeDisabled();
+  await expect(page.locator('#notebook-panel')).not.toContainText('날짜와 관계없이 모든 메모를 모아둡니다.');
+  for (const title of ['남길 메모', '삭제할 메모 A', '삭제할 메모 B']) {
+    await page.locator('#add-memo').click();
+    await expect(page.locator('#memo-title')).not.toBeFocused();
+    await expect(page.locator('#memo-content')).not.toBeFocused();
+    await page.locator('#memo-title').fill(title);
+    await page.locator('#memo-content').fill(`${title} 본문`);
+    await page.locator('#back-to-memos').click();
+  }
+  await page.getByRole('button', { name: '남길 메모', exact: true }).click();
+  await expect(page.locator('#memo-title')).not.toBeFocused();
+  await expect(page.locator('#memo-content')).not.toBeFocused();
+  await page.keyboard.type('unintended');
+  await expect(page.locator('#memo-title')).toHaveValue('남길 메모');
+  await expect(page.locator('#memo-content')).toHaveValue('남길 메모 본문');
+  await page.locator('#memo-content').click();
+  await expect(page.locator('#memo-content')).toBeFocused();
+  await page.locator('#select-memos').click();
+  await expect(page.locator('#select-memos')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#add-memo')).toBeDisabled();
+  await expect(page.locator('#delete-selected-memos')).toBeDisabled();
+  await page.getByRole('checkbox', { name: '삭제할 메모 A', exact: true }).check();
+  await page.getByRole('checkbox', { name: '삭제할 메모 B', exact: true }).check();
+  await expect(page.locator('#memo-selection-count')).toHaveText('2개 선택');
+  await page.getByRole('checkbox', { name: '삭제할 메모 B', exact: true }).uncheck();
+  await expect(page.locator('#memo-selection-count')).toHaveText('1개 선택');
+  await page.getByRole('checkbox', { name: '삭제할 메모 B', exact: true }).check();
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(920, 640));
+  await expect(page.locator('#delete-selected-memos')).toBeInViewport();
+  await page.screenshot({ path: `test-results/notebook-select-${process.platform}.png` });
+  await page.locator('#delete-selected-memos').click();
+  await expect(page.locator('#delete-memo-heading')).toHaveText('메모 2개를 삭제할까요?');
+  await page.locator('#cancel-delete-memo').click();
+  await expect(page.locator('#memo-list input:checked')).toHaveCount(2);
+  await page.locator('#cancel-memo-selection').click();
+  await expect(page.locator('#memo-list button')).toHaveCount(3);
+  await page.locator('#select-memos').click();
+  await expect(page.locator('#memo-list input:checked')).toHaveCount(0);
+  await page.getByRole('checkbox', { name: '삭제할 메모 A', exact: true }).check();
+  await page.getByRole('checkbox', { name: '삭제할 메모 B', exact: true }).check();
+  await page.locator('#delete-selected-memos').click();
+  await page.locator('#confirm-delete-memo').click();
+  await expect(page.locator('#memo-list button')).toHaveText(['남길 메모']);
+  await page.locator('#select-memos').click();
+  await page.getByRole('checkbox', { name: '남길 메모', exact: true }).check();
+  await page.locator('#back-to-day').click();
+  await expect(page.locator('#notebook-button')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#schedule-card')).toBeVisible();
+  await expect(page.locator('#todo-card')).toBeVisible();
+  for (const section of ['schedule', 'todo']) {
+    await expect(page.locator(`#${section}-editor input[type=checkbox]`)).toHaveCSS('width', '16px');
+    await expect(page.locator(`#${section}-editor input[type=checkbox]`)).toHaveCSS('height', '16px');
+  }
+  await page.locator('#notebook-button').click();
+  await expect(page.locator('#select-memos')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#memo-list button')).toHaveText(['남길 메모']);
+  await page.locator('#memo-list button').click();
+  await expect(page.locator('#memo-content')).toHaveValue('남길 메모 본문');
+  await page.locator('#back-to-day').click();
+  await expect(page.locator('#notebook-button')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#notebook-button')).toBeFocused();
+  await expect(page.locator('#save-label')).toHaveText('자동 저장됨');
+  await desktop.close(); desktop = null;
+  await launch();
+  await page.locator('#notebook-button').click();
+  await expect(page.locator('#memo-list button')).toHaveText(['남길 메모']);
+  expect(errors).toEqual([]);
+});
+
+test('문장 중간의 한글 조합 확정 Enter는 항목·커서를 유지하고 다음 Enter는 새 항목을 만든다', async () => {
+  for (const section of ['schedule', 'todo']) {
+    const fields = page.locator(`#${section}-editor textarea`);
+    await fields.first().fill('회의 준비');
+    await fields.first().focus();
+    const result = await fields.first().evaluate(field => {
+      field.setSelectionRange(3, 3);
+      field.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      field.setRangeText('자료 ', 3, 3, 'end');
+      field.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertCompositionText', data: '자료 ', isComposing: true }));
+      // Some IMEs end composition before delivering the confirming keydown.
+      field.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '자료 ' }));
+      const caret = field.selectionStart;
+      const confirmingEnter = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true, cancelable: true });
+      field.dispatchEvent(confirmingEnter);
+      const heldEnter = new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', repeat: true, bubbles: true, cancelable: true });
+      field.dispatchEvent(heldEnter);
+      field.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', bubbles: true }));
+      return { prevented: confirmingEnter.defaultPrevented, repeatPrevented: heldEnter.defaultPrevented, caret };
+    });
+    expect(result.prevented).toBe(true);
+    expect(result.repeatPrevented).toBe(true);
+    await expect(fields).toHaveCount(1);
+    await expect(fields.first()).toHaveValue('회의 자료 준비');
+    await expect(fields.first()).toBeFocused();
+    expect(await fields.first().evaluate(field => field.selectionStart)).toBe(result.caret);
+    // Track composition even when a confirming event incorrectly says false.
+    await fields.first().evaluate(field => {
+      field.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+      field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      field.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+      field.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+    });
+    await expect(fields).toHaveCount(1);
+    await fields.first().press('End');
+    await fields.first().press('Enter');
+    await expect(fields).toHaveCount(2);
+    await expect(fields.first()).toHaveValue('회의 자료 준비');
+    await expect(fields.last()).toHaveValue('');
+    await expect(fields.last()).toBeFocused();
+  }
   expect(errors).toEqual([]);
 });

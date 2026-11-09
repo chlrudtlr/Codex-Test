@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "icon-tile-stack",
+        "value": "*",
+        "files": [
+          "src/index.html"
+        ],
+        "createdAt": "2026-11-09T13:34:47.886Z",
+        "reason": "Agent: false positive verified in rendered 920px and 1600px screenshots; .brand uses display:flex with default row direction, placing the 34px logo beside h1, not above it."
+      }
+    ]
+  }
+}

@@ -134,7 +134,12 @@ h1, h2, h3, p { margin: 0; font-weight: inherit; }
 .workspace[aria-busy="true"] { pointer-events: none; opacity: .6; }
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; }
 .calendar-panel { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-.month-toolbar { display: flex; align-items: center; justify-content: space-between; min-height: 76px; padding: 18px 22px; flex-shrink: 0; }
+.month-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 76px; padding: 18px 22px; flex-shrink: 0; }
+.calendar-display-controls { display: flex; justify-content: flex-end; gap: 6px; }
+.calendar-display-controls button { min-height: 32px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); font-size: 12px; white-space: nowrap; }
+.calendar-display-controls button:hover { background: var(--hover); }
+.calendar-display-controls button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.calendar-display-controls button[aria-pressed="true"]:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
 .month-title h2 { font-size: 22px; font-weight: 500; letter-spacing: -.025em; margin-top: 0; line-height: 1.2; }
 .month-navigation { display: flex; align-items: center; gap: 12px; }
 .today-button { border: 1px solid var(--border); background: var(--accent-soft); border-radius: 7px; min-height: 36px; padding: 7px 14px; font-size: 12px; color: var(--accent-text); }
@@ -176,6 +181,42 @@ h1, h2, h3, p { margin: 0; font-weight: inherit; }
 .selected-header h2 { font-size: 21px; letter-spacing: -.025em; margin-top: 0; font-weight: 500; }
 .selected-header h2 span { font-size: 13px; font-weight: 500; color: var(--subtle); margin-left: 8px; }
 .today-badge { font-size: 12px; color: var(--accent-text); border: 1px solid var(--border); background: var(--accent-soft); border-radius: 6px; padding: 4px 9px; }
+.selected-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+#notebook-button { min-height: 32px; padding: 6px 10px; white-space: nowrap; }
+#notebook-button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+#notebook-button[aria-pressed="true"]:hover { background: var(--accent-hover); }
+.notebook-panel { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
+.notebook-panel h3 { font-size: 15px; }
+.notebook-heading-group, .notebook-actions { display: flex; align-items: center; gap: 6px; }
+#back-to-day { width: 28px; height: 32px; }
+#back-to-day .icon { width: 18px; height: 18px; }
+#select-memos[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.memo-selection-actions { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 12px; color: var(--muted); }
+.memo-selection-actions > div { display: flex; gap: 6px; }
+.memo-selection-actions button { min-height: 32px; padding: 6px 10px; font-size: 12px; }
+.memo-select-row { display: flex; align-items: flex-start; gap: 10px; padding: 14px 6px; border-radius: 4px; font-size: 14px; line-height: 24px; color: var(--text); cursor: pointer; }
+.memo-select-row:hover, .memo-select-row:focus-within { background: var(--hover); }
+.memo-select-row span { min-width: 0; overflow-wrap: anywhere; }
+.memo-list-view { flex: 1; min-height: 0; overflow-y: auto; padding: 0 18px 18px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.notebook-help { font-size: 12px; line-height: 1.7; color: var(--muted); }
+.memo-empty { padding: 40px 8px; text-align: center; font-size: 14px; line-height: 1.8; color: var(--muted); }
+.memo-list { list-style: none; margin: 0; padding: 0; }
+.memo-list li { border-bottom: 1px solid var(--line); }
+.memo-list-button { display: block; width: 100%; padding: 14px 6px; border: 0; border-radius: 4px; background: transparent; color: var(--text); text-align: left; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.memo-list-button:hover, .memo-list-button:focus-visible { background: var(--hover); }
+.memo-edit-view { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow-y: auto; padding: 0 18px 18px; gap: 10px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.memo-edit-actions { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.memo-edit-actions button { min-height: 32px; padding: 6px 10px; font-size: 12px; }
+.memo-edit-view label { font-size: 12px; color: var(--muted); }
+#memo-title, #memo-content { width: 100%; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); padding: 9px 10px; font-size: 14px; line-height: 1.7; }
+#memo-title { flex-shrink: 0; }
+#memo-content { flex: 1; min-height: 120px; resize: none; overflow-wrap: anywhere; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+#memo-title::placeholder, #memo-content::placeholder { color: var(--placeholder); }
+@media (max-width: 1100px) {
+  .selected-header h2 { font-size: 19px; }
+  .selected-header h2 span { display: block; margin: 3px 0 0; font-size: 12px; }
+  .selected-actions { gap: 5px; }
+}
 .editor-card { min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .schedule-card { flex: 0 0 29%; min-height: 140px; }
 .todo-card { flex: 1; min-height: 180px; }
@@ -192,9 +233,9 @@ h1, h2, h3, p { margin: 0; font-weight: inherit; }
 .item-editor { overflow-y: auto; overflow-x: hidden; flex: 1; padding: 2px 14px 18px; min-height: 0; cursor: default; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
 .item-row { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; padding: 8px 6px; border-bottom: 0; position: relative; }
 .item-row:hover, .item-row:focus-within { background: var(--surface-soft); }
-.item-row input[type="checkbox"] { accent-color: var(--accent); appearance: none; width: 18px; height: 18px; border: 1.3px solid var(--muted); border-radius: 4px; margin: 3px 0 0; flex-shrink: 0; background: var(--surface); cursor: pointer; }
-.item-row input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
-.item-row input[type="checkbox"]:checked::after { content: ''; display: block; width: 7px; height: 4px; border: solid var(--on-accent); border-width: 0 0 1.5px 1.5px; transform: translate(3.5px, 4px) rotate(-45deg); }
+.item-row input[type="checkbox"], .memo-select-row input[type="checkbox"] { accent-color: var(--accent); appearance: none; width: 16px; height: 16px; border: 1.3px solid var(--muted); border-radius: 4px; margin: 4px 0 0; flex-shrink: 0; background: var(--surface); cursor: pointer; }
+.item-row input[type="checkbox"]:checked, .memo-select-row input[type="checkbox"]:checked { background: var(--accent); border-color: var(--accent); }
+.item-row input[type="checkbox"]:checked::after, .memo-select-row input[type="checkbox"]:checked::after { content: ''; display: block; width: 6px; height: 3px; border: solid var(--on-accent); border-width: 0 0 1.5px 1.5px; transform: translate(3px, 3.5px) rotate(-45deg); }
 .item-row textarea { cursor: text; flex: 1; width: 0; min-width: 0; resize: none; border: 0; background: transparent; color: var(--text); font-size: 14px; line-height: 24px; min-height: 24px; height: 24px; padding: 0; overflow: hidden; overflow-wrap: anywhere; outline: none; border-radius: 2px; }
 .item-row textarea::placeholder { color: var(--placeholder); font-size: 14px; }
 .item-row textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -266,7 +307,7 @@ dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
 
 /* A checkbox and its following descriptions share one bottom divider. */
 .item-row:not(:has(+ .item-row.note)) { border-bottom: 1px solid var(--line); }
-.note-mark { width: 18px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.note-mark { width: 16px; height: 24px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .note-mark::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--bullet); }
 .theme-picker { min-width: 0; margin: 20px 0 0; padding: 16px 0 0; border: 0; border-top: 1px solid var(--border); }
 .theme-picker legend { float: left; width: 100%; font-size: 12px; font-weight: 500; }

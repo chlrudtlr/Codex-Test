@@ -71,5 +71,19 @@ export function validateData(data) {
       });
     }
   }
-  return { version: 1, days };
+  const result = { version: 1, days };
+  // Older calendar files have no notebook. Preserve their shape until used.
+  if (Object.hasOwn(data, 'memos')) {
+    if (!Array.isArray(data.memos)) throw new Error('메모 목록이 올바르지 않습니다.');
+    const ids = new Set();
+    result.memos = data.memos.map(memo => {
+      if (!memo || typeof memo.id !== 'string' || !memo.id || ids.has(memo.id) ||
+        typeof memo.title !== 'string' || typeof memo.content !== 'string') {
+        throw new Error('메모가 올바르지 않습니다.');
+      }
+      ids.add(memo.id);
+      return { id: memo.id, title: memo.title, content: memo.content };
+    });
+  }
+  return result;
 }

@@ -57,3 +57,20 @@ test('창 위치는 연결된 모니터 안으로 보정하고 사라진 모니�
   assert.deepEqual(visibleBounds({ x: -20, y: -50, width: 1200, height: 800 }, displays), { x: 0, y: 0, width: 1200, height: 800 });
   assert.equal(visibleBounds({ x: 'bad' }, displays), null);
 });
+
+test('기존 일정·할 일에 전체 메모를 추가하고 저장·백업·손상 복구한다', t => {
+  const directory = temporary(t);
+  const legacy = state('기존 업무');
+  const store = new DataStore(directory);
+  store.save(legacy);
+  const withMemo = { ...legacy, memos: [{ id: 'm1', title: '참고 사항', content: '첫 줄\n둘째 줄' }] };
+  store.save(withMemo);
+  assert.deepEqual(new DataStore(directory).load(), withMemo);
+  assert.deepEqual(JSON.parse(fs.readFileSync(store.backup, 'utf8')), legacy);
+  assert.throws(() => store.save({ ...withMemo, memos: [{ id: 'bad' }] }));
+  assert.deepEqual(new DataStore(directory).load(), withMemo);
+  store.save({ ...withMemo, memos: [] });
+  assert.deepEqual(new DataStore(directory).load().memos, []);
+  fs.writeFileSync(store.file, 'broken');
+  assert.deepEqual(new DataStore(directory).load(), withMemo);
+});

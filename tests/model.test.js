@@ -47,3 +47,19 @@ test('존재하지 않는 날짜, 중복 ID, 고아 설명, 다른 버전은 저
   assert.throws(() => validateData(data('2026-11-07', [note('1', '설명')])));
   assert.throws(() => validateData({ version: 2, days: {} }));
 });
+
+test('기존 기록에 메모가 없어도 읽고 전체 메모를 안전하게 검증한다', () => {
+  const legacy = { version: 1, days: {} };
+  assert.deepEqual(validateData(legacy), legacy);
+  const original = { ...legacy, memos: [{ id: 'm1', title: '업무 참고', content: '첫 줄\n둘째 줄' }] };
+  const copy = validateData(original);
+  assert.deepEqual(copy, original);
+  copy.memos[0].content = '수정';
+  assert.equal(original.memos[0].content, '첫 줄\n둘째 줄');
+  assert.doesNotThrow(() => validateData({ ...legacy, memos: [{ id: 'empty', title: '', content: '' }] }));
+  for (const memos of [null, {}, [null], [{ id: '', title: '', content: '' }],
+    [{ id: 'm', title: 1, content: '' }], [{ id: 'm', title: '', content: null }],
+    [original.memos[0], original.memos[0]]]) {
+    assert.throws(() => validateData({ ...legacy, memos }));
+  }
+});
