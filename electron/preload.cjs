@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('daynote', {
   save: data => ipcRenderer.invoke('calendar:save', data),
   flush: data => ipcRenderer.sendSync('calendar:flush', data),
   exportTodo: request => ipcRenderer.invoke('calendar:export', request),
+  openLink: url => ipcRenderer.invoke('links:open', url),
   settings: () => ipcRenderer.invoke('settings:get'),
   setTheme: theme => ipcRenderer.invoke('settings:theme', theme),
   setAutoLaunch: enabled => ipcRenderer.invoke('settings:auto-launch', enabled)

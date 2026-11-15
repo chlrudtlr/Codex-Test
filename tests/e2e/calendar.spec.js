@@ -46,6 +46,7 @@ test('한국어 입력, Enter·Tab 설명, 진행률, 완료 표시, 날짜별 �
   expect(await description.evaluate(field => field.clientHeight)).toBeGreaterThan(21);
   await description.press('End');
   await description.press('Enter');
+  await page.locator('#todo-editor textarea').nth(2).press('Enter');
   await page.locator('#todo-editor textarea').nth(2).fill('회의 자료 준비');
   await expect(page.locator('#todo-editor .task').first()).toHaveCSS('border-bottom-width', '0px');
   // A one-physical-pixel divider is 0.8 CSS pixels at Windows 125% scaling.
@@ -75,6 +76,267 @@ test('한국어 입력, Enter·Tab 설명, 진행률, 완료 표시, 날짜별 �
   await expect(page.locator('#todo-editor .note textarea')).toHaveValue(/지난달 실적/);
   await expect(page.locator('#todo-progress-text')).toHaveText('완료 1 / 전체 2');
   await expect(page.locator('#schedule-editor input[type=checkbox]').first()).toBeChecked();
+  expect(errors).toEqual([]);
+});
+
+test('일정·할 일 설명은 Enter로 이어지고 빈 설명에서 Enter로 끝나며 재실행 후 보존된다', async () => {
+  for (const section of ['schedule', 'todo']) {
+    const fields = page.locator(`#${section}-editor textarea`);
+    const notes = page.locator(`#${section}-editor .note textarea`);
+    await fields.first().fill('상위 항목');
+    await fields.first().press('End');
+    await fields.first().press('Enter');
+    await fields.nth(1).press('Tab');
+    await notes.first().fill('첫 설명두 번째 설명');
+    await notes.first().evaluate(field => field.setSelectionRange(4, 4));
+    await notes.first().press('Enter');
+    await expect(notes).toHaveCount(2);
+    await expect(notes.first()).toHaveValue('첫 설명');
+    await expect(notes.nth(1)).toHaveValue('두 번째 설명');
+    await expect(notes.nth(1)).toBeFocused();
+    await notes.nth(1).press('End');
+    await notes.nth(1).press('Enter');
+    await expect(notes).toHaveCount(3);
+    await notes.last().press('Enter');
+    await expect(notes).toHaveCount(2);
+    await expect(fields.last()).toBeFocused();
+    await fields.last().fill('다음 항목');
+    // Exiting an empty description in the middle keeps following notes on
+    // their original parent and creates no extra empty description.
+    await notes.first().press('Home');
+    await notes.first().press('Enter');
+    await expect(notes).toHaveCount(3);
+    await notes.first().press('Enter');
+    await expect(notes).toHaveCount(2);
+    await expect(fields.nth(3)).toBeFocused();
+    await expect(fields.nth(2)).toHaveValue('두 번째 설명');
+    await fields.nth(3).press('Backspace');
+  }
+  await desktop.close(); desktop = null;
+  await launch();
+  for (const section of ['schedule', 'todo']) {
+    await expect(page.locator(`#${section}-editor .note textarea`)).toHaveCount(2);
+    await expect(page.locator(`#${section}-editor textarea`).nth(1)).toHaveValue('첫 설명');
+    await expect(page.locator(`#${section}-editor textarea`).nth(2)).toHaveValue('두 번째 설명');
+    await expect(page.locator(`#${section}-editor .task textarea`).last()).toHaveValue('다음 항목');
+  }
+  expect(errors).toEqual([]);
+});
+
+test('메모의 별표·공백은 글머리표로 바뀌고 Enter로 이어지며 빈 목록에서 종료된다', async () => {
+  await page.locator('#notebook-button').click();
+  await page.locator('#add-memo').click();
+  let body = page.locator('#memo-content');
+  await body.fill('*');
+  await body.press('End');
+  await body.press('Space');
+  await expect(body).toHaveValue('• ');
+  await body.press('ControlOrMeta+z');
+  await expect(body).toHaveValue('*');
+  await body.press('End');
+  await body.press('Space');
+  await expect(body).toHaveValue('• ');
+  await body.press('a');
+  await body.press('Enter');
+  await expect(body).toHaveValue('• a\n• ');
+  await body.press('b');
+  await body.press('Enter');
+  await body.press('Enter');
+  await expect(body).toHaveValue('• a\n• b\n');
+  await body.press('c');
+  await body.press('Enter');
+  await body.press('*');
+  await body.press('Space');
+  await expect(body).toHaveValue('• a\n• b\nc\n• ');
+  await body.press('d');
+  // Splitting in the middle preserves the suffix and puts the caret after
+  // the new marker. Shift+Enter remains a plain line break.
+  await body.fill('• 앞뒤');
+  await body.evaluate(field => field.setSelectionRange(3, 3));
+  await body.press('Enter');
+  await expect(body).toHaveValue('• 앞\n• 뒤');
+  expect(await body.evaluate(field => field.selectionStart)).toBe(6);
+  await body.press('End');
+  await body.press('Shift+Enter');
+  await expect(body).toHaveValue('• 앞\n• 뒤\n');
+  await body.fill('문장 *');
+  await body.press('End');
+  await body.press('Space');
+  await expect(body).toHaveValue('문장 * ');
+  await body.fill('• 한글');
+  await body.press('End');
+  await body.evaluate(field => {
+    field.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, bubbles: true }));
+    field.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true }));
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    field.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', bubbles: true }));
+  });
+  await expect(body).toHaveValue('• 한글');
+  await body.press('Enter');
+  await body.press('Enter');
+  await body.press('x');
+  await desktop.close(); desktop = null;
+  await launch();
+  await page.locator('#notebook-button').click();
+  await page.locator('#memo-list button').click();
+  body = page.locator('#memo-content');
+  await expect(body).toHaveValue('• 한글\nx');
+  await page.screenshot({ path: 'test-results/memo-bullets.png' });
+  expect(errors).toEqual([]);
+});
+
+async function pasteText(field, text) {
+  await desktop.evaluate(({ clipboard }, value) => clipboard.writeText(value), text);
+  await field.press('ControlOrMeta+v');
+}
+
+test('Enter 직후 다른 입력칸을 선택하면 예약된 포커스가 입력 위치를 빼앗지 않는다', async () => {
+  await page.locator('#todo-editor textarea').fill('이전 입력');
+  await page.locator('#todo-editor textarea').evaluate(field => {
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    document.querySelector('#schedule-editor textarea').focus();
+  });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await expect(page.locator('#schedule-editor textarea')).toBeFocused();
+  await page.keyboard.insertText('새 일정');
+  await expect(page.locator('#schedule-editor textarea')).toHaveValue('새 일정');
+  expect(errors).toEqual([]);
+});
+
+test('일정·할 일·설명의 링크 붙여넣기, 이름 변경, Ctrl+클릭과 재실행 복원', async () => {
+  const url = 'https://example.com/project/' + 'very-long-path/'.repeat(8) + '?keep=original#section';
+  await desktop.evaluate(({ shell }) => {
+    globalThis.daynoteOpenedLinks = [];
+    shell.openExternal = async url => { globalThis.daynoteOpenedLinks.push(url); };
+  });
+  for (const section of ['schedule', 'todo']) {
+    const fields = page.locator(`#${section}-editor textarea`);
+    await pasteText(fields.first(), url);
+    const link = page.locator(`#${section}-editor .link-mirror a`).first();
+    await expect(link).toHaveAttribute('href', url);
+    expect((await fields.first().inputValue()).length).toBeLessThan(45);
+    await expect(link).toHaveAttribute('title', new RegExp('keep=original'));
+    await link.click({ force: true });
+    await expect(fields.first()).toBeFocused();
+    expect(await desktop.evaluate(() => globalThis.daynoteOpenedLinks)).toEqual([]);
+    await link.click({ button: 'right', force: true });
+    await expect(page.locator('#link-name-popover')).toBeVisible();
+    await expect(page.locator('#link-address')).toHaveValue(url);
+    await page.locator('#link-name').fill('회의 자료');
+    await page.locator('#link-name-form button[type=submit]').click();
+    await expect(fields.first()).toHaveValue('회의 자료');
+    await expect(link).toHaveText('회의 자료');
+    await link.click({ modifiers: ['Control'], force: true });
+    await expect.poll(() => desktop.evaluate(() => globalThis.daynoteOpenedLinks.length)).toBe(1);
+    await desktop.evaluate(() => { globalThis.daynoteOpenedLinks = []; });
+    await fields.first().press('End');
+    await fields.first().press('Enter');
+    await fields.nth(1).press('Tab');
+    await pasteText(fields.nth(1), '설명 https://docs.google.com/document/d/abc/edit');
+    await expect(fields.nth(1)).toHaveValue('설명 Google 문서');
+    await fields.nth(1).press('Home');
+    await fields.nth(1).press('Enter');
+    await expect(page.locator(`#${section}-editor .note .link-mirror a`)).toHaveAttribute('href', 'https://docs.google.com/document/d/abc/edit');
+  }
+  await desktop.close(); desktop = null;
+  await launch();
+  for (const section of ['schedule', 'todo']) {
+    const links = page.locator(`#${section}-editor .link-mirror a`);
+    await expect(links.first()).toHaveText('회의 자료');
+    await expect(links.first()).toHaveAttribute('href', url);
+    await expect(links.nth(1)).toHaveText('Google 문서');
+  }
+  await page.screenshot({ path: `test-results/links-day-${process.platform}.png` });
+  expect(errors).toEqual([]);
+});
+
+test('메모 링크는 실행 취소·복사·이름 변경과 목록 입력·스크롤·재실행을 지원한다', async () => {
+  const url = 'https://example.org/' + 'long-path/'.repeat(10) + '?source=paste';
+  await page.locator('#notebook-button').click();
+  await page.locator('#add-memo').click();
+  let field = page.locator('#memo-content');
+  await pasteText(field, url);
+  const originalLabel = await field.inputValue();
+  await field.press('ControlOrMeta+z');
+  await expect(field).toHaveValue('');
+  await field.press('ControlOrMeta+Shift+z');
+  await expect(field).toHaveValue(originalLabel);
+  await expect(page.locator('.memo-linked-editor a')).toHaveAttribute('href', url);
+  // Link styling must not steal mouse drag selection from the text field.
+  const rect = await page.locator('.memo-linked-editor a').evaluate(node => {
+    const line = node.getClientRects()[0];
+    return { x: line.x, y: line.y, width: line.width, height: line.height };
+  });
+  await page.mouse.move(rect.x + 1, rect.y + rect.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(rect.x + rect.width - 1, rect.y + rect.height / 2, { steps: 8 });
+  await page.mouse.up();
+  expect(await field.evaluate(node => node.selectionEnd - node.selectionStart)).toBeGreaterThan(0);
+  await field.press('ControlOrMeta+a');
+  await field.press('ControlOrMeta+c');
+  expect(await desktop.evaluate(({ clipboard }) => clipboard.readText())).toBe(url);
+  await field.press('End');
+  await field.press('F2');
+  await page.locator('#link-name').fill('참고 문서');
+  await page.locator('#cancel-link-name').click();
+  await expect(field).toHaveValue(originalLabel);
+  await field.press('Home');
+  await field.press('F2');
+  await page.locator('#link-name').fill('참고 문서');
+  await page.locator('#link-name-form button[type=submit]').click();
+  await expect(field).toHaveValue('참고 문서');
+  await field.press('End');
+  await field.press('Enter');
+  await field.press('*');
+  await field.press('Space');
+  await pasteText(field, 'https://docs.google.com/spreadsheets/d/sheet/edit');
+  await field.press('Enter');
+  await field.press('Enter');
+  await pasteText(field, '\n긴 일반 본문'.repeat(40));
+  await field.press('ControlOrMeta+End');
+  await expect.poll(() => field.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+  await expect.poll(() => field.evaluate(node => node.parentElement.querySelector('.link-mirror').scrollTop)).toBeGreaterThan(0);
+  await field.press('ControlOrMeta+Home');
+  await desktop.close(); desktop = null;
+  await launch();
+  await page.locator('#notebook-button').click();
+  await page.locator('#memo-list button').click();
+  field = page.locator('#memo-content');
+  await expect(field).toHaveValue(/참고 문서\n• Google 스프레드시트/);
+  await expect(page.locator('.memo-linked-editor a').first()).toHaveAttribute('href', url);
+  await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(920, 640));
+  await page.screenshot({ path: `test-results/links-memo-small-${process.platform}.png` });
+  await page.locator('#settings-button').click();
+  await page.getByRole('radio', { name: '어두운 테마', exact: true }).check();
+  await page.locator('#settings-done').click();
+  await page.screenshot({ path: `test-results/links-memo-dark-${process.platform}.png` });
+  expect(errors).toEqual([]);
+});
+
+test('여러 줄 링크 붙여넣기와 앞뒤 편집·잘라내기에서 주소를 보존하고 위험한 주소는 열지 않는다', async () => {
+  const fields = page.locator('#todo-editor textarea');
+  await pasteText(fields.first(), '첫째 https://example.com/a\n둘째 https://example.org/b');
+  await expect(fields).toHaveCount(2);
+  await expect(page.locator('#todo-editor .link-mirror a')).toHaveCount(2);
+  await fields.first().press('Home');
+  await fields.first().press('x');
+  await expect(page.locator('#todo-editor .link-mirror a').first()).toHaveAttribute('href', 'https://example.com/a');
+  await fields.first().press('ControlOrMeta+a');
+  await fields.first().press('ControlOrMeta+x');
+  await expect(fields.first()).toHaveValue('');
+  expect(await desktop.evaluate(({ clipboard }) => clipboard.readText())).toBe('x첫째 https://example.com/a');
+  await expect(page.locator('#todo-editor .link-mirror a')).toHaveCount(1);
+  await pasteText(fields.first(), 'javascript:alert(1) file:///C:/test.exe <img src=x onerror=alert(1)>');
+  await expect(page.locator('#todo-editor img')).toHaveCount(0);
+  const denied = await page.evaluate(async () => {
+    const results = [];
+    for (const url of ['javascript:alert(1)', 'file:///C:/test.exe', 'data:text/html,evil', 'https://example.com\n']) {
+      try { await window.daynote.openLink(url); results.push(false); } catch { results.push(true); }
+    }
+    return results;
+  });
+  expect(denied).toEqual([true, true, true, true]);
   expect(errors).toEqual([]);
 });
 
@@ -417,6 +679,7 @@ test('취소·저장 실패 후 다시 내보내고 실제 Excel의 내용과 �
   await page.locator('#todo-editor .note textarea').fill('함께 내보낼 설명');
   await page.locator('#todo-editor .note textarea').press('End');
   await page.locator('#todo-editor .note textarea').press('Enter');
+  await page.locator('#todo-editor textarea').last().press('Enter');
   await page.locator('#todo-editor textarea').last().fill('아직 진행 중인 업무');
   await page.locator('#schedule-editor textarea').fill('포함하지 않을 일정');
   await desktop.evaluate(({ dialog }) => { dialog.showSaveDialog = async () => ({ canceled: true, filePath: '' }); });

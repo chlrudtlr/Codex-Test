@@ -1,4 +1,5 @@
 import { isDateKey } from './model.js';
+import { expandedLinks } from './links.js';
 
 export function validateExportRange(start, end) {
   if (typeof start !== 'string' || typeof end !== 'string' || !isDateKey(start) || !isDateKey(end)) {
@@ -20,8 +21,8 @@ export function collectTodoRows(data, start, end) {
     for (const item of data.days[date].todo) {
       if (item.type === 'task') {
         finish();
-        current = { text: item.text.trim() ? item.text : '', checked: item.checked, notes: [] };
-      } else if (current && item.text.trim()) current.notes.push(item.text);
+        current = { text: item.text.trim() ? expandedLinks(item.text, item.links) : '', checked: item.checked, notes: [] };
+      } else if (current && item.text.trim()) current.notes.push(expandedLinks(item.text, item.links));
     }
     finish();
   }

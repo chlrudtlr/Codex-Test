@@ -1,6 +1,8 @@
 import { WEEKDAYS, dateKey, parseDate, monthDates, newItem, taskStats, scheduleItems, groupEnd, canIndent } from '../shared/model.js';
 import { THEMES, isTheme } from '../shared/themes.js';
 import { validateExportRange } from '../shared/export.js';
+import { linkedPaste, sliceLinks, setLinks } from '../shared/links.js';
+import { bindLinkedField } from './link-field.js';
 
 const $ = id => document.getElementById(id);
 const api = window.daynote;
@@ -20,7 +22,10 @@ let openedMemoId = null;
 let memoSelectionMode = false;
 const selectedMemoIds = new Set();
 let pendingMemoDeletion = [];
-const editorFocusGeneration = { schedule: 0, todo: 0 };
+let editorFocusGeneration = 0;
+// A later interaction anywhere takes priority over a queued Enter/Tab focus.
+document.addEventListener('pointerdown', () => { editorFocusGeneration++; });
+document.addEventListener('focusin', () => { editorFocusGeneration++; });
 let exportInProgress = false;
 
 $('export-button').addEventListener('click', () => {
@@ -282,8 +287,13 @@ function autoHeight(textarea) {
   textarea.style.height = `${Math.max(21, textarea.scrollHeight)}px`;
 }
 
+async function openLink(url) {
+  try { await api.openLink(url); }
+  catch { notify('링크를 열지 못했습니다. 링크를 우클릭해 전체 주소를 확인하거나 복사해주세요.'); }
+}
+
 function renderEditor(section, focusId, caret) {
-  const focusGeneration = ++editorFocusGeneration[section];
+  const focusGeneration = ++editorFocusGeneration;
   const container = $(`${section}-editor`);
   const scroll = container.scrollTop;
   container.replaceChildren();
@@ -304,10 +314,14 @@ function renderEditor(section, focusId, caret) {
     textarea.rows = 1; textarea.value = item.text; textarea.spellcheck = false;
     textarea.setAttribute('aria-label', `${name}${item.type === 'note' ? ' 설명' : ''} ${index + 1}`);
     textarea.placeholder = item.type === 'note' ? '위 항목의 설명을 입력하세요' : `${name === '일정' ? '일정' : '할 일'}을 입력하세요`;
-    textarea.addEventListener('input', () => { item.text = textarea.value; autoHeight(textarea); changed(); });
-    bindEditorKeys(textarea, section, item);
-    textarea.addEventListener('paste', event => pasteLines(event, section, item, textarea));
-    row.append(textarea);
+    const linkedField = bindLinkedField(textarea, {
+      getLinks: () => item.links,
+      onChange: (text, links) => { item.text = text; setLinks(item, links); autoHeight(textarea); changed(); },
+      openLink,
+      multilinePaste: text => pasteLines(text, section, item, textarea)
+    });
+    bindTextKeys(textarea, event => handleKey(event, section, item, textarea));
+    row.append(linkedField.element);
     const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'icon-button delete-item';
     remove.setAttribute('aria-label', `${name}${item.type === 'note' ? ' 설명' : ''} ${index + 1} 삭제`);
     remove.title = '삭제'; remove.append(icon('close'));
@@ -318,7 +332,7 @@ function renderEditor(section, focusId, caret) {
   // Keep the selected day's editor height correct after font/layout changes.
   requestAnimationFrame(() => {
     for (const textarea of container.querySelectorAll('textarea')) autoHeight(textarea);
-    if (focusId && focusGeneration === editorFocusGeneration[section]) {
+    if (focusId && focusGeneration === editorFocusGeneration) {
       const field = container.querySelector(`[data-id="${focusId}"] textarea`);
       field?.focus();
       if (field) field.setSelectionRange(caret ?? field.value.length, caret ?? field.value.length);
@@ -327,7 +341,7 @@ function renderEditor(section, focusId, caret) {
   });
 }
 
-function bindEditorKeys(textarea, section, item) {
+function bindTextKeys(textarea, onKey) {
   let composing = false;
   let compositionJustEnded = false;
   let pointerCommitting = false;
@@ -361,7 +375,7 @@ function bindEditorKeys(textarea, section, item) {
       return;
     }
     compositionJustEnded = false;
-    handleKey(event, section, item, textarea);
+    onKey(event);
   });
 }
 
@@ -372,11 +386,23 @@ function handleKey(event, section, item, textarea) {
   const index = items.findIndex(entry => entry.id === item.id);
   if (event.key === 'Enter') {
     event.preventDefault();
+    if (item.type === 'note' && !item.text.trim()) {
+      // End the description group without leaving an empty bullet or moving
+      // later descriptions onto the new checkbox.
+      items.splice(index, 1);
+      item.type = 'task'; item.text = ''; item.checked = false;
+      setLinks(item, []);
+      items.splice(groupEnd(items, index - 1), 0, item);
+      renderEditor(section, item.id, 0); changed();
+      return;
+    }
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const next = newItem('task', item.text.slice(end));
+    const next = newItem(item.type, item.text.slice(end));
+    setLinks(next, sliceLinks(item.links, end, item.text.length));
+    setLinks(item, sliceLinks(item.links, 0, start));
     item.text = item.text.slice(0, start);
-    items.splice(groupEnd(items, index), 0, next);
+    items.splice(item.type === 'note' ? index + 1 : groupEnd(items, index), 0, next);
     renderEditor(section, next.id, 0); changed();
   } else if (event.key === 'Tab') {
     event.preventDefault();
@@ -406,16 +432,28 @@ function containerField(section, index) {
   return $(`${section}-editor`).querySelectorAll('textarea')[index];
 }
 
-function pasteLines(event, section, item, textarea) {
-  const text = event.clipboardData.getData('text/plain').replace(/\r\n?/g, '\n');
-  if (!text.includes('\n')) return;
-  event.preventDefault();
-  const lines = text.split('\n');
+function pasteLines(source, section, item, textarea) {
+  const prepared = linkedPaste(source);
+  const lines = prepared.text.split('\n');
   const items = day()[section];
   const index = items.findIndex(entry => entry.id === item.id);
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const originalLinks = item.links;
   const suffix = item.text.slice(textarea.selectionEnd);
-  item.text = item.text.slice(0, textarea.selectionStart) + lines.shift();
-  const additions = lines.map(line => newItem('task', line));
+  const suffixLinks = sliceLinks(originalLinks, end, item.text.length);
+  const first = lines.shift();
+  item.text = item.text.slice(0, start) + first;
+  setLinks(item, [...sliceLinks(originalLinks, 0, start), ...sliceLinks(prepared.links, 0, first.length).map(link => ({ ...link, start: link.start + start, end: link.end + start }))]);
+  let offset = first.length + 1;
+  const additions = lines.map(line => {
+    const next = newItem('task', line);
+    setLinks(next, sliceLinks(prepared.links, offset, offset + line.length));
+    offset += line.length + 1;
+    return next;
+  });
+  const last = additions.at(-1);
+  setLinks(last, [...(last.links ?? []), ...suffixLinks.map(link => ({ ...link, start: link.start + last.text.length, end: link.end + last.text.length }))]);
   additions.at(-1).text += suffix;
   items.splice(groupEnd(items, index), 0, ...additions);
   renderEditor(section, additions.at(-1).id); changed();
@@ -502,6 +540,7 @@ function openMemo(id) {
   $('memo-edit-view').hidden = false;
   $('memo-title').value = memo.title;
   $('memo-content').value = memo.content;
+  memoLinkedField.reset();
   // Opening a memo is reading; only an explicit field interaction starts typing.
   $('back-to-memos').focus({ preventScroll: true });
 }
@@ -534,7 +573,53 @@ $('add-memo').addEventListener('click', () => {
   openMemo(memo.id);
 });
 $('back-to-memos').addEventListener('click', () => showMemoList(true));
-for (const [id, property] of [['memo-title', 'title'], ['memo-content', 'content']]) {
+const memoLinkedField = bindLinkedField($('memo-content'), {
+  getLinks: () => data.memos?.find(memo => memo.id === openedMemoId)?.links,
+  onChange: (text, links) => {
+    const memo = data.memos?.find(memo => memo.id === openedMemoId);
+    if (!memo) return;
+    memo.content = text; setLinks(memo, links); changed();
+  },
+  openLink
+});
+bindTextKeys($('memo-content'), event => {
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const field = event.target;
+  const start = field.selectionStart;
+  const end = field.selectionEnd;
+  const lineStart = field.value.slice(0, start).lastIndexOf('\n') + 1;
+  const before = field.value.slice(lineStart, start);
+  const lineEnd = field.value.indexOf('\n', end);
+  const after = field.value.slice(end, lineEnd < 0 ? field.value.length : lineEnd);
+  let replaceStart = start;
+  let replaceEnd = end;
+  let replacement;
+  if (event.key === ' ' && start === end && before === '*') {
+    replaceStart = lineStart;
+    replacement = '• ';
+  } else if (event.key === 'Enter' && before.startsWith('• ')) {
+    if (!before.slice(2).trim() && !after.trim()) {
+      replaceStart = lineStart;
+      replaceEnd = lineEnd < 0 ? field.value.length : lineEnd;
+      replacement = '';
+    } else {
+      replacement = '\n• ';
+    }
+  } else return;
+  event.preventDefault();
+  field.setSelectionRange(replaceStart, replaceEnd);
+  // Native text insertion preserves the textarea's Undo/Redo history and
+  // emits input, so list edits follow the same autosave path as typing.
+  if (!document.execCommand('insertText', false, replacement)) {
+    field.setRangeText(replacement, replaceStart, replaceEnd, 'end');
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  // Chromium can leave the caret on the preceding line after deleting a
+  // trailing empty bullet. Continue typing on the now-plain line instead.
+  const caret = replaceStart + replacement.length;
+  field.setSelectionRange(caret, caret);
+});
+for (const [id, property] of [['memo-title', 'title']]) {
   $(id).addEventListener('input', event => {
     const memo = data.memos?.find(item => item.id === openedMemoId);
     if (!memo) return;
@@ -586,7 +671,6 @@ $('add-todo').addEventListener('click', () => addItem('todo'));
 for (const section of ['schedule', 'todo']) {
   $(`${section}-editor`).addEventListener('pointerdown', event => {
     // A later mouse action takes priority over an earlier queued keyboard focus.
-    editorFocusGeneration[section]++;
     // Blank space only ends editing; creating an item requires Enter or +.
     if (!event.target.closest('textarea, button, input') && document.activeElement instanceof HTMLTextAreaElement) {
       document.activeElement.blur();

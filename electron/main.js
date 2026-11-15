@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen, nativeTheme } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, nativeTheme, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +7,7 @@ import { visibleBounds } from './window-state.js';
 import { isTheme } from '../shared/themes.js';
 import { validateData } from '../shared/model.js';
 import { collectTodoRows } from '../shared/export.js';
+import { webUrl } from '../shared/links.js';
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const indexFile = path.join(directory, '../src/index.html');
@@ -145,6 +146,12 @@ if (singleInstance) {
       trusted(event); return { data: store.load(), recoveryMessage: store.recoveryMessage, theme };
     });
     ipcMain.handle('calendar:save', (event, data) => { trusted(event); store.save(data); return true; });
+    ipcMain.handle('links:open', async (event, value) => {
+      trusted(event);
+      if (!webUrl(value)) throw new Error('HTTP 또는 HTTPS 주소만 열 수 있습니다.');
+      await shell.openExternal(value);
+      return true;
+    });
     ipcMain.handle('calendar:export', async (event, payload) => {
       trusted(event);
       if (exporting) throw new Error('이미 내보내기를 진행하고 있습니다.');

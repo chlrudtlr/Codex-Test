@@ -241,6 +241,23 @@ h1, h2, h3, p { margin: 0; font-weight: inherit; }
 .item-row textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .item-row.note { min-height: 32px; padding: 5px 6px 8px 24px; }
 .item-row.note textarea { color: var(--muted); font-size: 13px; }
+.linked-editor { position: relative; flex: 1; min-width: 0; }
+.item-row .linked-editor textarea { display: block; width: 100%; }
+.memo-linked-editor { display: flex; min-height: 120px; }
+.link-mirror { display: none; position: absolute; left: 0; top: 0; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; border: solid transparent; color: var(--text); pointer-events: none; }
+.note .link-mirror { color: var(--muted); }
+.has-links .link-mirror { display: block; }
+.has-links textarea { color: transparent !important; }
+.has-links textarea::selection { color: var(--text); }
+.link-mirror a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 3px; pointer-events: none; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+#link-name-popover { position: fixed; inset: auto; margin: 0; width: min(360px, calc(100vw - 24px)); padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 8px 24px var(--shadow-strong); }
+#link-name-heading { margin: 0 0 14px; font-size: 15px; }
+#link-name-form { display: grid; gap: 8px; }
+#link-name-form label { font-size: 12px; color: var(--muted); }
+#link-name-form input { min-width: 0; width: 100%; border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; background: var(--surface); color: var(--text); font-size: 13px; }
+#link-address { background: var(--surface-soft); }
+.link-name-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 .delete-item { flex-shrink: 0; width: 28px; height: 28px; padding: 5px; margin-top: 0; opacity: 0; color: var(--subtle); }
 .delete-item .icon { width: 13px; height: 13px; }
 .item-row:hover .delete-item, .item-row:focus-within .delete-item, .delete-item:focus-visible { opacity: 1; }

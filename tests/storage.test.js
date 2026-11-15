@@ -51,6 +51,20 @@ test('복구 불가능한 파일이나 잘못된 저장 요청이 기존 기록�
   assert.equal(fs.readFileSync(store.file, 'utf8'), 'broken');
 });
 
+test('일정·할 일·메모의 링크 목적지를 저장하고 백업에서 복구한다', t => {
+  const directory = temporary(t);
+  const store = new DataStore(directory);
+  const data = state('회의 자료');
+  data.days['2026-11-07'].todo[0].links = [{ start: 0, end: 5, url: 'https://example.com/a?keep=1' }];
+  data.days['2026-11-07'].schedule = structuredClone(data.days['2026-11-07'].todo);
+  data.memos = [{ id: 'm', title: '메모', content: '회의 자료', links: structuredClone(data.days['2026-11-07'].todo[0].links) }];
+  store.save(data);
+  assert.deepEqual(new DataStore(directory).load(), data);
+  store.save({ ...data, memos: [] });
+  fs.writeFileSync(store.file, 'broken');
+  assert.deepEqual(new DataStore(directory).load(), data);
+});
+
 test('창 위치는 연결된 모니터 안으로 보정하고 사라진 모니터의 위치는 버린다', () => {
   const displays = [{ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }];
   assert.equal(visibleBounds({ x: 2500, y: 100, width: 1000, height: 700 }, displays), null);

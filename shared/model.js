@@ -1,3 +1,5 @@
+import { validateLinks } from './links.js';
+
 export const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 
 export function dateKey(date) {
@@ -67,7 +69,8 @@ export function validateData(data) {
           throw new Error('업무 항목이 올바르지 않습니다.');
         }
         ids.add(item.id);
-        return { id: item.id, type: item.type, text: item.text, checked: item.type === 'task' && item.checked };
+        return { id: item.id, type: item.type, text: item.text, checked: item.type === 'task' && item.checked,
+          ...(Object.hasOwn(item, 'links') ? { links: validateLinks(item.text, item.links) } : {}) };
       });
     }
   }
@@ -82,7 +85,8 @@ export function validateData(data) {
         throw new Error('메모가 올바르지 않습니다.');
       }
       ids.add(memo.id);
-      return { id: memo.id, title: memo.title, content: memo.content };
+      return { id: memo.id, title: memo.title, content: memo.content,
+        ...(Object.hasOwn(memo, 'links') ? { links: validateLinks(memo.content, memo.links) } : {}) };
     });
   }
   return result;

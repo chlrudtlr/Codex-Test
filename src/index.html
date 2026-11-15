@@ -83,12 +83,22 @@
             <div class="memo-edit-actions"><button id="back-to-memos" class="secondary-button" type="button">목록으로</button></div>
             <label for="memo-title">제목</label><input id="memo-title" type="text" placeholder="제목을 입력하세요" autocomplete="off">
             <label for="memo-content">내용</label><textarea id="memo-content" placeholder="메모를 자유롭게 작성하세요" spellcheck="false"></textarea>
-            <p class="notebook-help">입력한 내용은 자동으로 저장됩니다.</p>
+            <p class="notebook-help">자동 저장 · 링크는 Ctrl+클릭으로 열고 우클릭으로 이름을 바꿉니다.</p>
           </div>
         </section>
       </aside>
     </main>
   </div>
+
+  <p id="link-help" class="visually-hidden">URL을 붙여넣으면 짧은 링크로 바뀝니다. 링크에서 Ctrl+클릭 또는 Ctrl+Enter로 열고 우클릭 또는 F2로 표시 이름을 바꿉니다. Mac에서는 Ctrl 대신 Command를 사용합니다.</p>
+  <section id="link-name-popover" popover="auto" aria-labelledby="link-name-heading">
+    <h2 id="link-name-heading">링크 표시 이름</h2>
+    <form id="link-name-form">
+      <label for="link-name">표시 이름</label><input id="link-name" type="text" maxlength="200" required autocomplete="off">
+      <label for="link-address">원래 주소</label><input id="link-address" type="text" readonly>
+      <div class="link-name-actions"><button id="cancel-link-name" class="secondary-button" type="button">취소</button><button class="primary-button" type="submit">저장</button></div>
+    </form>
+  </section>
 
   <dialog id="delete-memo-dialog" aria-labelledby="delete-memo-heading" aria-describedby="delete-memo-description">
     <header class="dialog-header"><h2 id="delete-memo-heading">메모를 삭제할까요?</h2></header>
@@ -114,7 +124,7 @@
     <p id="auto-launch-help" class="setting-help"></p>
     <fieldset class="theme-picker"><legend>메인 테마</legend><p class="setting-help">원하는 색상이나 밝기 테마를 선택하세요.</p><div id="theme-options" class="theme-options"></div><p id="theme-status" class="setting-help" role="status" aria-live="polite"></p></fieldset>
     <div class="settings-info"><h3>자동 저장</h3><p>변경한 내용은 인터넷 연결 없이 이 PC에 저장됩니다.<br>앱을 다시 열면 오늘 날짜로 시작합니다.</p><span class="path-label">저장 파일 위치</span><code id="data-path"></code><p class="backup-info">calendar.json.bak 파일에 이전 저장본도 보관합니다.</p></div>
-    <div class="keyboard-guide"><h3>키보드 사용법</h3><p><kbd>Enter</kbd><span>새 체크박스 항목</span></p><p><kbd>Tab</kbd><span>위 항목의 설명으로 전환</span></p><p><kbd>Shift + Tab</kbd><span>설명을 체크박스로 전환</span></p><p><kbd>Backspace</kbd><span>비어 있는 항목 삭제</span></p></div>
+    <div class="keyboard-guide"><h3>키보드 사용법</h3><p><kbd>Enter</kbd><span>새 항목 · 설명에서는 다음 설명</span></p><p><kbd>Enter × 2</kbd><span>설명 입력 종료 · 새 체크박스</span></p><p><kbd>Tab</kbd><span>위 항목의 설명으로 전환</span></p><p><kbd>Shift + Tab</kbd><span>설명을 체크박스로 전환</span></p><p><kbd>Backspace</kbd><span>비어 있는 항목 삭제</span></p></div>
     </div>
     <footer class="dialog-footer"><div class="app-credit"><span id="app-version">Daynote</span><span>Crafted by ks0108.choi</span></div><button id="settings-done" class="primary-button">완료</button></footer>
   </dialog>
