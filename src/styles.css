@@ -187,9 +187,7 @@ h1, h2, h3, p { margin: 0; font-weight: inherit; }
 #notebook-button[aria-pressed="true"]:hover { background: var(--accent-hover); }
 .notebook-panel { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
 .notebook-panel h3 { font-size: 15px; }
-.notebook-heading-group, .notebook-actions { display: flex; align-items: center; gap: 6px; }
-#back-to-day { width: 28px; height: 32px; }
-#back-to-day .icon { width: 18px; height: 18px; }
+.notebook-actions { display: flex; align-items: center; gap: 6px; }
 #select-memos[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 .memo-selection-actions { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 12px; color: var(--muted); }
 .memo-selection-actions > div { display: flex; gap: 6px; }
@@ -344,3 +342,21 @@ dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
 #theme-status { min-height: 17px; margin-top: 8px; }
 .app-credit { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--subtle); }
 .app-credit span:last-child { font-size: 11px; }
+
+.workspace { gap: 0; grid-template-columns: var(--calendar-width, 1.9fr) 14px minmax(300px, 1fr); }
+.day-panel { gap: 0; }
+.selected-header { margin-bottom: 8px; }
+.schedule-card { flex-basis: var(--schedule-height, 29%); }
+.splitter { display: grid; place-items: center; touch-action: none; user-select: none; }
+#column-split { cursor: col-resize; }
+#row-split { cursor: row-resize; flex: 0 0 14px; }
+.splitter::after { content: ""; border-radius: 2px; background: var(--border); }
+#column-split::after { width: 2px; height: 44px; }
+#row-split::after { width: 44px; height: 2px; }
+.splitter:is(:hover,:focus-visible,:active)::after { background: var(--accent); }
+.memo-list li { display: flex; align-items: center; }
+.memo-select-row, .memo-list-button { flex: 1; min-width: 0; }
+.memo-pin { flex: none; }
+.memo-pin .icon { width: 14px; height: 14px; }
+.memo-pin[aria-pressed="true"] { color: var(--accent-text); background: var(--accent-soft); }
+.memo-pin[aria-pressed="true"] svg { fill: currentColor; }

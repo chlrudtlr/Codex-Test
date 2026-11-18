@@ -86,6 +86,7 @@ export function validateData(data) {
       }
       ids.add(memo.id);
       return { id: memo.id, title: memo.title, content: memo.content,
+        ...(memo.pinned === true ? { pinned: true } : {}),
         ...(Object.hasOwn(memo, 'links') ? { links: validateLinks(memo.content, memo.links) } : {}) };
     });
   }

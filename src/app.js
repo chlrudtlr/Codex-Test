@@ -1,3 +1,4 @@
+import './splitters.js';
 import { WEEKDAYS, dateKey, parseDate, monthDates, newItem, taskStats, scheduleItems, groupEnd, canIndent } from '../shared/model.js';
 import { THEMES, isTheme } from '../shared/themes.js';
 import { validateExportRange } from '../shared/export.js';
@@ -265,7 +266,6 @@ function renderDay() {
   const heading = $('selected-heading');
   heading.textContent = `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`;
   const weekday = document.createElement('span'); weekday.textContent = `${WEEKDAYS[date.getDay()]}요일`; heading.append(weekday);
-  $('selected-today').hidden = selected !== today;
   renderEditor('schedule');
   renderEditor('todo');
   updateDayStats();
@@ -494,7 +494,7 @@ function renderMemoList() {
   $('add-memo').disabled = memoSelectionMode;
   $('memo-selection-actions').hidden = !memoSelectionMode;
   updateMemoSelection();
-  for (const memo of memos) {
+  for (const memo of [...memos].sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned))) {
     const row = document.createElement('li');
     if (memoSelectionMode) {
       const label = document.createElement('label'); label.className = 'memo-select-row';
@@ -514,7 +514,21 @@ function renderMemoList() {
       button.dataset.memoId = memo.id;
       button.textContent = memo.title.trim() || '제목 없음';
       button.addEventListener('click', () => openMemo(memo.id));
-      row.append(button);
+      const pin = document.createElement('button');
+      pin.className = 'icon-button memo-pin';
+      pin.type = 'button';
+      pin.title = memo.pinned ? '상단 고정 해제' : '상단 고정';
+      pin.setAttribute('aria-label', button.textContent + ' 상단 고정');
+      pin.setAttribute('aria-pressed', String(!!memo.pinned));
+      pin.append(icon('pin'));
+      pin.addEventListener('click', () => {
+        memo.pinned = !memo.pinned;
+        changed();
+        renderMemoList();
+        const title = document.querySelector('.memo-list-button[data-memo-id="' + CSS.escape(memo.id) + '"]');
+        title.nextElementSibling.focus();
+      });
+      row.append(button, pin);
     }
     $('memo-list').append(row);
   }
@@ -525,6 +539,7 @@ function showMemoList(focus = false) {
   memoSelectionMode = false;
   selectedMemoIds.clear();
   $('notebook-heading').textContent = '메모 목록';
+  $('notebook-actions').hidden = false;
   $('memo-edit-view').hidden = true;
   $('memo-list-view').hidden = false;
   renderMemoList();
@@ -537,17 +552,20 @@ function openMemo(id) {
   openedMemoId = id;
   $('notebook-heading').textContent = '메모 편집';
   $('memo-list-view').hidden = true;
+  $('notebook-actions').hidden = true;
   $('memo-edit-view').hidden = false;
   $('memo-title').value = memo.title;
   $('memo-content').value = memo.content;
   memoLinkedField.reset();
   // Opening a memo is reading; only an explicit field interaction starts typing.
-  $('back-to-memos').focus({ preventScroll: true });
+  $('save-memo').focus({ preventScroll: true });
 }
 
 function setNotebookOpen(open) {
   if (loading) return;
   notebookOpen = open;
+  $('row-split').hidden = open;
+  $('notebook-button').textContent = open ? '메모장 닫기' : '메모장 열기';
   $('notebook-button').setAttribute('aria-pressed', String(notebookOpen));
   document.querySelector('.day-panel').setAttribute('aria-label', notebookOpen ? '전체 메모장' : '선택한 날짜의 기록');
   $('schedule-card').hidden = notebookOpen;
@@ -560,10 +578,6 @@ function setNotebookOpen(open) {
   });
 }
 $('notebook-button').addEventListener('click', () => setNotebookOpen(!notebookOpen));
-$('back-to-day').addEventListener('click', () => {
-  setNotebookOpen(false);
-  $('notebook-button').focus();
-});
 $('add-memo').addEventListener('click', () => {
   if (loading || memoSelectionMode) return;
   const memo = { id: crypto.randomUUID(), title: '', content: '' };
@@ -572,7 +586,11 @@ $('add-memo').addEventListener('click', () => {
   renderMemoList();
   openMemo(memo.id);
 });
-$('back-to-memos').addEventListener('click', () => showMemoList(true));
+$('save-memo').addEventListener('click', async () => {
+  const memoId = openedMemoId;
+  await save();
+  if (memoId && openedMemoId === memoId && revision === savedRevision) showMemoList(true);
+});
 const memoLinkedField = bindLinkedField($('memo-content'), {
   getLinks: () => data.memos?.find(memo => memo.id === openedMemoId)?.links,
   onChange: (text, links) => {
@@ -733,7 +751,7 @@ window.addEventListener('beforeunload', event => {
 document.addEventListener('visibilitychange', () => { if (document.hidden) void save(); });
 window.addEventListener('focus', () => {
   const current = dateKey(new Date());
-  if (current !== today) { today = current; renderCalendar(); $('selected-today').hidden = selected !== today; }
+  if (current !== today) { today = current; renderCalendar(); }
 });
 new ResizeObserver(() => {
   scheduleCalendarLayout();

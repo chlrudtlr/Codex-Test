@@ -13,6 +13,7 @@
 <body>
   <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="4"/><path d="M7 3v5m10-5v5M3 11h18m-13 5h3"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path d="m14 3 7 7-3 1-3 4-1 3-8-8 3-1 4-3zM10 14l-7 7"/></symbol>
     <symbol id="i-left" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></symbol>
     <symbol id="i-right" viewBox="0 0 24 24"><path d="m10 6 6 6-6 6"/></symbol>
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
@@ -57,14 +58,16 @@
         <footer class="calendar-footer"><span><span class="legend-dot"></span><span id="calendar-legend">일정</span></span><span class="calendar-footer-note">날짜를 선택해 하루를 정리하세요</span></footer>
       </section>
 
+      <div id="column-split" class="splitter" role="separator" tabindex="0" aria-orientation="vertical" aria-label="캘린더 너비 조절" aria-controls="calendar-grid" title="캘린더 너비 조절"></div>
       <aside class="day-panel" aria-label="선택한 날짜의 기록">
-        <header class="selected-header"><div><h2 id="selected-heading" aria-live="polite" aria-atomic="true"></h2></div><div class="selected-actions"><span id="selected-today" class="today-badge" hidden>오늘</span><button id="notebook-button" class="secondary-button" type="button" aria-pressed="false" aria-controls="schedule-card todo-card notebook-panel">메모장</button></div></header>
+        <header class="selected-header"><div><h2 id="selected-heading" aria-live="polite" aria-atomic="true"></h2></div><div class="selected-actions"><button id="notebook-button" class="secondary-button" type="button" aria-pressed="false" aria-controls="schedule-card todo-card notebook-panel">메모장 열기</button></div></header>
 
         <section id="schedule-card" class="editor-card schedule-card panel" aria-labelledby="schedule-heading">
           <header class="editor-header"><div class="editor-title"><span class="section-icon schedule-icon"><svg class="icon"><use href="#i-clock"/></svg></span><h3 id="schedule-heading">일정<span>Schedule</span></h3><span id="schedule-count" class="count-badge">0</span></div><button id="add-schedule" class="icon-button add-button" aria-label="일정 추가" title="일정 추가"><svg class="icon"><use href="#i-plus"/></svg></button></header>
           <div id="schedule-editor" class="item-editor" aria-label="일정 입력 영역"></div>
         </section>
 
+        <div id="row-split" class="splitter" role="separator" tabindex="0" aria-orientation="horizontal" aria-label="일정 카드 높이 조절" aria-controls="schedule-card" title="일정 카드 높이 조절"></div>
         <section id="todo-card" class="editor-card todo-card panel" aria-labelledby="todo-heading">
           <header class="editor-header"><div class="editor-title"><span class="section-icon"><svg class="icon"><use href="#i-list"/></svg></span><h3 id="todo-heading">할 일<span>TODO List</span></h3></div><button id="add-todo" class="icon-button add-button" aria-label="할 일 추가" title="할 일 추가"><svg class="icon"><use href="#i-plus"/></svg></button></header>
           <div class="todo-progress"><span id="todo-progress-text">완료 0 / 전체 0</span><span id="todo-progress-percent">0%</span><div class="progress-track" role="progressbar" aria-label="할 일 완료율" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="todo-progress-fill"></div></div></div>
@@ -73,14 +76,14 @@
         </section>
 
         <section id="notebook-panel" class="notebook-panel panel" aria-labelledby="notebook-heading" hidden>
-          <header class="editor-header"><div class="notebook-heading-group"><button id="back-to-day" class="icon-button" type="button" aria-label="일정·할 일로 돌아가기" title="뒤로가기"><svg class="icon"><use href="#i-left"/></svg></button><h3 id="notebook-heading">메모 목록</h3></div><div class="notebook-actions"><button id="select-memos" class="icon-button add-button" type="button" aria-label="삭제할 메모 선택" title="삭제할 메모 선택" aria-pressed="false" aria-controls="memo-list"><svg class="icon"><use href="#i-minus"/></svg></button><button id="add-memo" class="icon-button add-button" type="button" aria-label="메모 추가" title="메모 추가"><svg class="icon"><use href="#i-plus"/></svg></button></div></header>
+          <header class="editor-header"><h3 id="notebook-heading">메모 목록</h3><div id="notebook-actions" class="notebook-actions"><button id="select-memos" class="icon-button add-button" type="button" aria-label="삭제할 메모 선택" title="삭제할 메모 선택" aria-pressed="false" aria-controls="memo-list"><svg class="icon"><use href="#i-minus"/></svg></button><button id="add-memo" class="icon-button add-button" type="button" aria-label="메모 추가" title="메모 추가"><svg class="icon"><use href="#i-plus"/></svg></button></div></header>
           <div id="memo-list-view" class="memo-list-view">
             <div id="memo-selection-actions" class="memo-selection-actions" hidden><span id="memo-selection-count" role="status">0개 선택</span><div><button id="cancel-memo-selection" class="secondary-button" type="button">취소</button><button id="delete-selected-memos" class="primary-button" type="button" disabled>선택 삭제</button></div></div>
             <p id="memo-empty" class="memo-empty">아직 메모가 없습니다.<br>위의 + 버튼으로 첫 메모를 작성하세요.</p>
             <ul id="memo-list" class="memo-list" aria-label="전체 메모"></ul>
           </div>
           <div id="memo-edit-view" class="memo-edit-view" hidden>
-            <div class="memo-edit-actions"><button id="back-to-memos" class="secondary-button" type="button">목록으로</button></div>
+            <div class="memo-edit-actions"><button id="save-memo" class="secondary-button" type="button">저장</button></div>
             <label for="memo-title">제목</label><input id="memo-title" type="text" placeholder="제목을 입력하세요" autocomplete="off">
             <label for="memo-content">내용</label><textarea id="memo-content" placeholder="메모를 자유롭게 작성하세요" spellcheck="false"></textarea>
             <p class="notebook-help">자동 저장 · 링크는 Ctrl+클릭으로 열고 우클릭으로 이름을 바꿉니다.</p>
